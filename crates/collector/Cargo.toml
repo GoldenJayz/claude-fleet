@@ -1,0 +1,44 @@
+[package]
+name = "fleet-collector"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Claude Fleet collector: system metrics, Claude Code usage and a token-protected LAN API"
+
+[lib]
+name = "fleet_collector"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fleet-collector"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", features = ["ws"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+directories = "6"
+futures-util = "0.3"
+gethostname = "1"
+nvml-wrapper = "0.13"
+rand = "0.10"
+rusqlite = { version = "0.43", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+subtle = "2"
+sysinfo = "0.40"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.7", features = ["cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dxgi",
+  "Win32_Graphics_Dxgi_Common",
+  "Win32_System_Performance",
+  "Win32_System_Threading",
+  "Win32_System_ProcessStatus",
+] }

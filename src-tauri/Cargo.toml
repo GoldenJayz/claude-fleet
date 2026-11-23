@@ -1,0 +1,27 @@
+[package]
+name = "claude-fleet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Claude Fleet: Claude usage and PC performance across your machines"
+
+[lib]
+name = "claude_fleet_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+anyhow = "1"
+fleet-collector = { path = "../crates/collector" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
+tokio = { version = "1", features = ["net"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+window-vibrancy = "0.8"
