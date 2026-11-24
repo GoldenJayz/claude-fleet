@@ -13,6 +13,14 @@ param(
     [switch]$SkipAndroid
 )
 $ErrorActionPreference = 'Stop'
+
+# Windows PowerShell treats anything a program writes to stderr as an error under 'Stop' (when
+# output is redirected), even progress lines. Run programs leniently and check their exit code.
+function Invoke-Native([scriptblock]$Command) {
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Command } finally { $ErrorActionPreference = $saved }
+}
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 $repo = 'GoldenJayz/claude-fleet'
@@ -21,8 +29,8 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version must look like 1.2.3 
 $conf = Join-Path $root 'src-tauri\tauri.conf.json'
 $current = (Get-Content $conf -Raw | ConvertFrom-Json).version
 if ([version]$Version -le [version]$current) { throw "Version $Version must be newer than the current $current." }
-if (git status --porcelain) { throw 'Commit or stash your changes first, so the release matches the pushed code.' }
-gh auth status *> $null; if ($LASTEXITCODE -ne 0) { throw 'Sign in to GitHub first: gh auth login' }
+if (Invoke-Native { git status --porcelain }) { throw 'Commit or stash your changes first, so the release matches the pushed code.' }
+Invoke-Native { gh auth status } *> $null; if ($LASTEXITCODE -ne 0) { throw 'Sign in to GitHub first: gh auth login' }
 
 # --- 1. version bump ---------------------------------------------------------------------------
 function Set-Text($path, $pattern, $replacement) {
@@ -39,7 +47,7 @@ Set-Text (Join-Path $root 'Cargo.toml') '(\[workspace\.package\]\s*\r?\nversion\
 $keys = Join-Path $env:APPDATA 'ClaudeFleet\updater-signing'
 $env:TAURI_SIGNING_PRIVATE_KEY = Join-Path $keys 'claude-fleet.key'
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = (Get-Content (Join-Path $keys 'password.txt') -Raw).Trim()
-npm run tauri build
+Invoke-Native { npm run tauri build }
 if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
 $msi = Get-Item (Join-Path $root "target\release\bundle\msi\Claude Fleet_${Version}_x64_en-US.msi")
 $sig = Get-Content "$($msi.FullName).sig" -Raw
@@ -74,11 +82,13 @@ $latest = Join-Path $out 'latest.json'
 $assets += $latest
 
 # --- 3. publish --------------------------------------------------------------------------------
-git add package.json Cargo.toml Cargo.lock src-tauri/tauri.conf.json
-git commit -m "Release v$Version"
-git push
+Invoke-Native { git add package.json Cargo.toml Cargo.lock src-tauri/tauri.conf.json }
+Invoke-Native { git commit -m "Release v$Version" }
+if ($LASTEXITCODE -ne 0) { throw 'git commit failed.' }
+Invoke-Native { git push }
 if ($LASTEXITCODE -ne 0) { throw 'git push failed; the release was not published.' }
 $notesArg = if ($Notes) { $Notes } else { "Claude Fleet $Version" }
-gh release create "v$Version" @assets --repo $repo --target (git rev-parse HEAD) --title "Claude Fleet $Version" --notes $notesArg
+$head = Invoke-Native { git rev-parse HEAD }
+Invoke-Native { gh release create "v$Version" @assets --repo $repo --target $head --title "Claude Fleet $Version" --notes $notesArg }
 if ($LASTEXITCODE -ne 0) { throw 'Creating the GitHub release failed.' }
 Write-Host "Released v$Version. Installed copies will offer the update within a few hours (or Settings > About > Check for updates)."

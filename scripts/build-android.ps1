@@ -3,6 +3,14 @@
 #   .\scripts\build-android.ps1 -Install   -> also installs it on the phone connected over USB (adb)
 param([switch]$Install)
 $ErrorActionPreference = 'Stop'
+
+# Windows PowerShell treats anything a program writes to stderr as an error under 'Stop' (when
+# output is redirected), even progress lines. Run programs leniently and check their exit code.
+function Invoke-Native([scriptblock]$Command) {
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Command } finally { $ErrorActionPreference = $saved }
+}
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
@@ -24,14 +32,14 @@ if (-not (Test-Path (Join-Path $android 'keystore.properties'))) {
 #    so we copy the library ourselves and run Gradle directly.
 $lib = Join-Path $root 'target\aarch64-linux-android\release\libclaude_fleet_lib.so'
 $started = Get-Date
-npx tauri android build --apk --target aarch64
+Invoke-Native { npx tauri android build --apk --target aarch64 }
 if ($LASTEXITCODE -ne 0) {
     if (-not (Test-Path $lib) -or (Get-Item $lib).LastWriteTime -lt $started) { throw 'The Rust build failed (see above).' }
     Write-Host 'Packaging with Gradle (copying the library instead of linking it)...'
     Copy-Item $lib (Join-Path $android 'app\src\main\jniLibs\arm64-v8a\') -Force
     Push-Location $android
     try {
-        .\gradlew.bat assembleArm64Release -x rustBuildArm64Release --console=plain
+        Invoke-Native { .\gradlew.bat assembleArm64Release -x rustBuildArm64Release --console=plain }
         if ($LASTEXITCODE -ne 0) { throw 'Gradle build failed.' }
     } finally { Pop-Location }
 }
@@ -46,8 +54,8 @@ Write-Host "APK: $dest ($([math]::Round((Get-Item $dest).Length / 1MB, 1)) MB)"
 
 if ($Install) {
     $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
-    & $adb install -r $dest
+    Invoke-Native { & $adb install -r $dest }
     if ($LASTEXITCODE -ne 0) { throw 'adb install failed. Is the phone plugged in with USB debugging on, and the prompt accepted?' }
-    & $adb shell monkey -p dev.claudefleet.app -c android.intent.category.LAUNCHER 1 | Out-Null
+    Invoke-Native { & $adb shell monkey -p dev.claudefleet.app -c android.intent.category.LAUNCHER 1 } | Out-Null
     Write-Host 'Installed and opened on the phone.'
 }
