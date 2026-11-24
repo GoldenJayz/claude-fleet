@@ -14,7 +14,7 @@ use tokio::sync::broadcast;
 pub const SAMPLE_EVERY: Duration = Duration::from_secs(2);
 pub const LOG_SCAN_EVERY: Duration = Duration::from_secs(5);
 const SPARK_POINTS: usize = 30; // 60 s at 2 s
-const TOP_PROCESSES: usize = 12;
+const TOP_PROCESSES: usize = 20;
 const RECENT_PROMPTS: usize = 40;
 const METRICS_RETENTION_MS: i64 = 48 * 3600 * 1000;
 
@@ -80,6 +80,7 @@ impl Shared {
             claude: self.claude.read().unwrap().clone(),
             plan: self.plan.read().unwrap().clone(),
             status_line: statusline::state(&self.cfg),
+            tasks: crate::agent::recent(self, 30),
         }
     }
 
@@ -200,6 +201,7 @@ impl Collector {
     pub async fn start(cfg: CollectorConfig) -> Result<Self> {
         let db_conn = db::open(&cfg.db_path())?;
         let _ = db::close_stale_shells(&db_conn, now_ms());
+        let _ = db::fail_interrupted_tasks(&db_conn, now_ms());
         let ingest = db::open(&cfg.db_path())?;
         statusline::write_script(&cfg)?;
 
@@ -379,6 +381,7 @@ impl Collector {
             });
         }
 
+        crate::agent::start(state.clone());
         Ok(Self { state })
     }
 }

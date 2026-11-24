@@ -141,12 +141,22 @@ function apply(prev: Snapshot | null, ev: StreamEvent): Snapshot | null {
       const { type: _t, ...plan } = ev;
       return { ...prev, plan };
     }
+    case 'task': {
+      if (!prev) return prev;
+      const { type: _t, ...task } = ev;
+      const rest = (prev.tasks ?? []).filter((t) => t.id !== task.id);
+      return { ...prev, tasks: [{ ...task, steps: [] }, ...rest].sort((a, b) => b.id - a.id).slice(0, 50) };
+    }
+    case 'taskStep': {
+      if (!prev?.tasks) return prev;
+      return { ...prev, tasks: prev.tasks.map((t) => (t.id === ev.taskId ? { ...t, stepCount: t.stepCount + 1 } : t)) };
+    }
     default:
       return prev;
   }
 }
 
-export type CollectorEvent = Extract<StreamEvent, { type: 'fileReceived' } | { type: 'shell' }>;
+export type CollectorEvent = Extract<StreamEvent, { type: 'fileReceived' } | { type: 'shell' } | { type: 'task' } | { type: 'taskStep' } | { type: 'screenViewed' }>;
 
 /** Live connection to one collector: WebSocket stream with reconnect and offline detection. */
 export function useCollector(machine: MachineConfig, onEvent?: (ev: CollectorEvent) => void): CollectorState {
@@ -185,10 +195,11 @@ export function useCollector(machine: MachineConfig, onEvent?: (ev: CollectorEve
         lastMsg.current = Date.now();
         backoff = 1000;
         const ev = JSON.parse(msg.data) as StreamEvent;
-        if (ev.type === 'fileReceived' || ev.type === 'shell') {
+        if (ev.type === 'fileReceived' || ev.type === 'shell' || ev.type === 'screenViewed') {
           onEventRef.current?.(ev);
           return;
         }
+        if (ev.type === 'task' || ev.type === 'taskStep') onEventRef.current?.(ev);
         latest = apply(latest, ev);
         // Metrics arrive every 2 s; skip redrawing them while hidden. Plan readings always go
         // through so the 80% alert still fires from the tray.

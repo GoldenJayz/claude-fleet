@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { CollectorState } from '../lib/collector';
 import type { MachineConfig } from '../types';
 
-export type View = { kind: 'overview' } | { kind: 'machine'; id: string } | { kind: 'terminal'; id: string } | { kind: 'settings' };
+export type View = { kind: 'overview' } | { kind: 'agents' } | { kind: 'machine'; id: string } | { kind: 'terminal'; id: string } | { kind: 'settings' };
 
 function Item({
   active,
@@ -69,6 +69,12 @@ export const icons = {
       <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
     </svg>
   ),
+  agents: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z" />
+      <path d="M18.5 15.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" />
+    </svg>
+  ),
   terminal: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="2.5" y="4" width="19" height="16" rx="2.5" />
@@ -91,7 +97,9 @@ export function Sidebar({
   machines,
   states,
   terminals,
+  agentsBusy = 0,
 }: {
+  agentsBusy?: number;
   view: View;
   onView: (v: View) => void;
   collapsed: boolean;
@@ -121,6 +129,18 @@ export function Sidebar({
       </button>
 
       <Item active={view.kind === 'overview'} collapsed={collapsed} icon={icons.overview} label="Overview" onClick={() => onView({ kind: 'overview' })} />
+      <Item
+        active={view.kind === 'agents'}
+        collapsed={collapsed}
+        icon={icons.agents}
+        label="Agents"
+        badge={
+          agentsBusy > 0 ? (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-500/30 px-1.5 text-[10.5px] font-semibold text-violet-100 ring-1 ring-violet-300/40">{agentsBusy}</span>
+          ) : undefined
+        }
+        onClick={() => onView({ kind: 'agents' })}
+      />
 
       {!collapsed && <div className="mt-4 mb-1 px-3 text-[10px] font-medium uppercase tracking-[0.16em] text-white/35">Machines</div>}
       {collapsed && <div className="mx-3 my-3 h-px bg-white/10" />}

@@ -21,6 +21,7 @@ clap = { version = "4", features = ["derive"] }
 directories = "6"
 futures-util = "0.3"
 gethostname = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 nvml-wrapper = "0.13"
 portable-pty = "0.9"
 rand = "0.10"
@@ -34,6 +35,7 @@ tower-http = { version = "0.7", features = ["cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ureq = { version = "3", features = ["json"] }
+xcap = "0.9.10"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [

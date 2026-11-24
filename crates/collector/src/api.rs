@@ -41,7 +41,12 @@ pub fn router(st: SharedState) -> Router {
         .route("/files/received", get(received_files))
         .route("/shell", get(shell))
         .route("/shell/status", get(shell_status))
-        .route("/shell/sessions", get(shell_sessions));
+        .route("/shell/sessions", get(shell_sessions))
+        .route("/screen", get(screenshot))
+        .route("/agent", get(agent_status))
+        .route("/agent/tasks", get(agent_tasks).post(agent_submit))
+        .route("/agent/tasks/{id}", get(agent_task))
+        .route("/agent/tasks/{id}/cancel", post(agent_cancel));
     Router::new()
         .nest("/v1", v1)
         .layer(middleware::from_fn_with_state(st.clone(), guard))
@@ -393,6 +398,105 @@ async fn shell(
     let ip = peer.ip().to_string();
     let (cols, rows) = (q.cols.unwrap_or(120), q.rows.unwrap_or(30));
     ws.on_upgrade(move |socket| crate::shell::session(socket, st, slot, from, ip, cols, rows))
+}
+
+#[derive(Deserialize)]
+struct ScreenQ {
+    from: Option<String>,
+}
+
+async fn screenshot(State(st): State<SharedState>, ConnectInfo(peer): ConnectInfo<SocketAddr>, Query(q): Query<ScreenQ>) -> Response {
+    if !st.cfg.allow_screen() {
+        return fail(
+            StatusCode::FORBIDDEN,
+            format!("Screenshots are turned off on {}. Turn them on in that PC's Settings → System.", st.cfg.machine_name),
+        );
+    }
+    let from: String = q
+        .from
+        .as_deref()
+        .map(|s| s.chars().filter(|c| !c.is_control()).take(64).collect::<String>())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "another device".into());
+    match tokio::task::spawn_blocking(crate::screen::capture).await {
+        Ok(Ok(jpeg)) => {
+            st.emit(&StreamEvent::ScreenViewed { ts: chrono::Utc::now().timestamp_millis(), from, ip: peer.ip().to_string() });
+            ([(header::CONTENT_TYPE, "image/jpeg"), (header::CACHE_CONTROL, "no-store")], jpeg).into_response()
+        }
+        Ok(Err(e)) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+struct AgentSubmit {
+    prompt: String,
+    cwd: String,
+    mode: String,
+    model: Option<String>,
+    effort: Option<String>,
+    #[serde(rename = "followUpOf")]
+    follow_up_of: Option<i64>,
+    from: Option<String>,
+}
+
+async fn agent_status(State(st): State<SharedState>) -> Response {
+    match tokio::task::spawn_blocking(move || crate::agent::status(&st)).await {
+        Ok(s) => Json(s).into_response(),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+async fn agent_tasks(State(st): State<SharedState>, Query(q): Query<KillsQ>) -> Response {
+    let limit = q.limit.unwrap_or(50).min(500);
+    match tokio::task::spawn_blocking(move || crate::agent::recent(&st, limit)).await {
+        Ok(list) => Json(list).into_response(),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+async fn agent_task(State(st): State<SharedState>, Path(id): Path<i64>) -> Response {
+    match tokio::task::spawn_blocking(move || crate::agent::get(&st, id)).await {
+        Ok(Some(t)) => Json(t).into_response(),
+        Ok(None) => fail(StatusCode::NOT_FOUND, "no such task"),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+async fn agent_submit(
+    State(st): State<SharedState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(body): Json<AgentSubmit>,
+) -> Response {
+    let from: String = body
+        .from
+        .as_deref()
+        .map(|s| s.chars().filter(|c| !c.is_control()).take(64).collect::<String>())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "another device".into());
+    let n = crate::agent::NewTask {
+        prompt: body.prompt,
+        cwd: body.cwd,
+        mode: body.mode,
+        model: body.model.filter(|m| !m.is_empty()),
+        effort: body.effort.filter(|e| !e.is_empty()),
+        follow_up_of: body.follow_up_of,
+        from,
+        ip: peer.ip().to_string(),
+    };
+    match tokio::task::spawn_blocking(move || crate::agent::submit(&st, n)).await {
+        Ok(Ok(t)) => (StatusCode::CREATED, Json(t)).into_response(),
+        Ok(Err((code, msg))) => fail(StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST), msg),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+async fn agent_cancel(State(st): State<SharedState>, Path(id): Path<i64>) -> Response {
+    match tokio::task::spawn_blocking(move || crate::agent::cancel(&st, id)).await {
+        Ok(Ok(())) => Json(json!({"ok": true})).into_response(),
+        Ok(Err(e)) => fail(StatusCode::CONFLICT, e),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
 }
 
 async fn shell_sessions(State(st): State<SharedState>, Query(q): Query<KillsQ>) -> ApiResult<Vec<crate::types::ShellSession>> {

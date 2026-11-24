@@ -224,6 +224,51 @@ export interface Snapshot {
   claude: ClaudeSummary;
   plan: PlanReading | null;
   statusLine: StatusLineState;
+  /** Recent agent tasks on this machine (without steps). Missing on older collectors. */
+  tasks?: AgentTask[];
+}
+
+export type AgentMode = 'plan' | 'acceptEdits' | 'auto' | 'bypassPermissions';
+export type AgentTaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
+
+export interface AgentStep {
+  ts: number;
+  kind: 'note' | 'text' | 'tool' | 'toolError' | 'error';
+  text: string;
+}
+
+/** A job handed to Claude Code on a machine. */
+export interface AgentTask {
+  id: number;
+  created: number;
+  started: number | null;
+  ended: number | null;
+  from: string;
+  ip: string;
+  prompt: string;
+  cwd: string;
+  mode: AgentMode;
+  model: string | null;
+  effort: string | null;
+  resume: string | null;
+  followUpOf?: number | null;
+  status: AgentTaskStatus;
+  sessionId: string | null;
+  result: string | null;
+  error: string | null;
+  costUsd: number | null;
+  turns: number | null;
+  stepCount: number;
+  steps: AgentStep[];
+}
+
+export interface AgentStatus {
+  access: 'off' | 'edits' | 'full';
+  machine: string;
+  running: number | null;
+  queued: number;
+  folders: string[];
+  home: string | null;
 }
 
 export type StreamEvent =
@@ -232,7 +277,10 @@ export type StreamEvent =
   | ({ type: 'claude' } & ClaudeSummary)
   | ({ type: 'plan' } & PlanReading)
   | ({ type: 'fileReceived' } & ReceivedFile)
-  | ({ type: 'shell' } & ShellSession);
+  | ({ type: 'shell' } & ShellSession)
+  | ({ type: 'task' } & AgentTask)
+  | { type: 'screenViewed'; ts: number; from: string; ip: string }
+  | { type: 'taskStep'; taskId: number; step: AgentStep };
 
 /** A file another PC sent to this one. */
 export interface ReceivedFile {

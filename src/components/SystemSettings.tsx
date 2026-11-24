@@ -53,6 +53,9 @@ export function SystemSettings({
   const [sl, setSl] = useState<boolean | null>(statusLineInstalled);
   const [shell, setShell] = useState<boolean | null>(null);
   const [confirmShell, setConfirmShell] = useState(false);
+  const [screen, setScreen] = useState<boolean | null>(null);
+  const [agent, setAgent] = useState<'off' | 'edits' | 'full' | null>(null);
+  const [confirmAgent, setConfirmAgent] = useState<'edits' | 'full' | null>(null);
   const [inbox, setInbox] = useState<string | null>(null);
 
   useEffect(() => setSl(statusLineInstalled), [statusLineInstalled]);
@@ -61,6 +64,8 @@ export function SystemSettings({
     system.getAutostart().then(setAutostart).catch(() => {});
     system.firewallStatus().then(setFw).catch(() => {});
     system.getRemoteShell().then(setShell).catch(() => {});
+    system.getAgentAccess().then(setAgent).catch(() => {});
+    system.getAllowScreen().then(setScreen).catch(() => {});
     system.inboxDir().then(setInbox).catch(() => {});
   }, []);
 
@@ -207,6 +212,65 @@ export function SystemSettings({
               Turn on
             </button>
             <button className={quiet} onClick={() => setConfirmShell(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Row
+        label="Allow screenshots"
+        hint="Lets your paired devices see this PC’s screen (all monitors) from its page. You get a notification when someone looks."
+      >
+        <Toggle
+          on={!!screen}
+          disabled={!system.available || screen === null || busy === 'screen'}
+          onChange={(v) =>
+            act('screen', () => system.setAllowScreen(v).then((r) => (setScreen(r), r)), () => (v ? 'Screenshots turned on.' : 'Screenshots turned off.'))
+          }
+        />
+      </Row>
+
+      <Row
+        label="Agent tasks"
+        hint="Lets your other devices hand Claude Code a task to run on this PC, in a folder they pick, with your Claude sign-in. Full access also lets tasks run commands without asking."
+      >
+        <div className="flex rounded-xl bg-white/[0.06] p-0.5 ring-1 ring-white/10">
+          {(['off', 'edits', 'full'] as const).map((lvl) => (
+            <button
+              key={lvl}
+              disabled={!system.available || agent === null || busy === 'agent'}
+              onClick={() =>
+                lvl === agent
+                  ? undefined
+                  : lvl === 'off'
+                    ? act('agent', () => system.setAgentAccess('off').then((r) => (setAgent(r), r)), () => 'Agent tasks turned off. A task already running finishes.')
+                    : setConfirmAgent(lvl)
+              }
+              className={`rounded-[10px] px-3 py-1 text-[12px] transition-colors ${agent === lvl ? 'bg-white/15 text-white' : 'text-white/55 hover:text-white'}`}
+            >
+              {lvl === 'off' ? 'Off' : lvl === 'edits' ? 'On' : 'Full access'}
+            </button>
+          ))}
+        </div>
+      </Row>
+      {confirmAgent && (
+        <div className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-[12.5px] text-amber-50 ring-1 ring-amber-300/25">
+          {confirmAgent === 'full'
+            ? 'Anyone with this PC’s pairing code will be able to have Claude run any command here as you, without asking: install programs, change or delete files. Only for networks you trust.'
+            : 'Anyone with this PC’s pairing code will be able to have Claude read and edit files here, in any folder they choose, using your Claude plan. Commands that need approval are skipped.'}
+          <div className="mt-2 flex gap-2">
+            <button
+              className={`${btn} bg-amber-500/30 text-amber-50 ring-amber-300/40 hover:bg-amber-500/45`}
+              onClick={() => {
+                const lvl = confirmAgent;
+                setConfirmAgent(null);
+                act('agent', () => system.setAgentAccess(lvl).then((r) => (setAgent(r), r)), () => (lvl === 'full' ? 'Agent tasks on, with full access.' : 'Agent tasks turned on.'));
+              }}
+            >
+              Turn on
+            </button>
+            <button className={quiet} onClick={() => setConfirmAgent(null)}>
               Cancel
             </button>
           </div>

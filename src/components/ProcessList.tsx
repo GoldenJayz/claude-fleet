@@ -102,7 +102,24 @@ export function ProcessList({
   const [target, setTarget] = useState<KillTarget | null>(null);
   const [logKey, setLogKey] = useState(0);
   const heavyPids = new Set(heavy.map((h) => h.pid));
-  const rows = processes.filter((p) => !heavyPids.has(p.pid)).slice(0, 14);
+  const [sort, setSort] = useState<'cpu' | 'mem'>('cpu');
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const rows = processes
+    .filter((p) => !heavyPids.has(p.pid))
+    .filter((p) => !q || p.name.toLowerCase().includes(q) || String(p.pid) === q)
+    .sort((a, b) => (sort === 'cpu' ? b.cpu - a.cpu || b.memory - a.memory : b.memory - a.memory || b.cpu - a.cpu))
+    .slice(0, 20);
+  const head = (key: 'cpu' | 'mem', label: string) => (
+    <button
+      onClick={() => setSort(key)}
+      title={`Sort by ${key === 'cpu' ? 'CPU' : 'memory'}`}
+      className={`text-right uppercase tracking-[0.14em] transition-colors ${sort === key ? 'text-white/85' : 'hover:text-white/70'}`}
+    >
+      {label}
+      {sort === key ? ' ↓' : ''}
+    </button>
+  );
 
   const close = useCallback((changed: boolean) => {
     setTarget(null);
@@ -143,12 +160,21 @@ export function ProcessList({
           </ul>
 
           <div className="mb-1.5 grid grid-cols-[1fr_64px_56px_40px] md:grid-cols-[1fr_84px_66px_44px] gap-2 px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-white/40">
-            <span>Top processes</span>
-            <span className="text-right">CPU</span>
-            <span className="text-right">Memory</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0">Top</span>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Filter…"
+                className="min-w-0 flex-1 rounded-md bg-black/25 px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-white/80 ring-1 ring-white/10 outline-none placeholder:text-white/30"
+              />
+            </span>
+            {head('cpu', 'CPU')}
+            {head('mem', 'Memory')}
             <span />
           </div>
           <ul>
+            {rows.length === 0 && <li className="px-2 py-2 text-[12px] text-white/40">No process matches “{query}”.</li>}
             {rows.map((p) => (
               <li
                 key={p.pid}

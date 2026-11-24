@@ -10,8 +10,10 @@ import {
 } from "react";
 import { Background } from "./components/Background";
 import { DropOverlay } from "./components/DropOverlay";
+import { AgentsView } from "./components/AgentsView";
 import { MachineCard } from "./components/MachineCard";
 import { MobileHeader, MobileNav } from "./components/MobileNav";
+import { ScreenView } from "./components/ScreenView";
 import { Overview } from "./components/Overview";
 import { PlanBanner } from "./components/PlanBanner";
 import { SettingsView } from "./components/SettingsView";
@@ -28,6 +30,7 @@ import {
 import { bytes } from "./lib/format";
 import { isMobile, useMachines } from "./lib/machines";
 import { usePlan } from "./lib/plan";
+import { publishTaskStep } from "./lib/agent";
 import { usePlanAlert } from "./lib/alerts";
 import { useUiSettings } from "./lib/settings";
 import { system } from "./lib/system";
@@ -91,6 +94,8 @@ export default function App() {
     });
   }, []);
   const [terminals, setTerminals] = useState<string[]>([]);
+  const [screenOf, setScreenOf] = useState<string | null>(null);
+  const screenNotified = useRef<Record<string, number>>({});
   /** Remote shells other PCs have open on this one. */
   const [incomingShells, setIncomingShells] = useState<ShellSession[]>([]);
   const me = local?.machineName ?? (isMobile ? "Phone" : "dashboard");
@@ -113,6 +118,15 @@ export default function App() {
             `From ${ev.from} · ${bytes(ev.size)} · saved in Downloads\\Claude Fleet`,
           )
           .catch(() => {});
+      } else if (ev.type === "screenViewed") {
+        // One notification per viewer every 10 minutes (auto-refresh takes many screenshots).
+        const last = screenNotified.current[ev.from] ?? 0;
+        if (Date.now() - last > 10 * 60_000) {
+          screenNotified.current[ev.from] = Date.now();
+          system
+            .notify("Screenshot taken", `${ev.from} (${ev.ip}) is viewing this PC's screen.`)
+            .catch(() => {});
+        }
       } else if (ev.type === "shell") {
         setIncomingShells((list) =>
           ev.ended
@@ -129,6 +143,32 @@ export default function App() {
       }
     },
     [received],
+  );
+
+  // Agent task progress from every machine; your own finished tasks get a notification.
+  const onAnyEvent = useCallback(
+    (m: MachineConfig, ev: CollectorEvent) => {
+      if (ev.type === "taskStep") return publishTaskStep(m.id, ev.taskId, ev.step);
+      if (ev.type === "task") {
+        if (ev.from === me && ["done", "failed"].includes(ev.status)) {
+          const where = states[m.id]?.snapshot?.machine.machineName ?? m.name;
+          system
+            .notify(
+              ev.status === "done" ? `Task done on ${where}` : `Task failed on ${where}`,
+              (ev.status === "done" ? ev.result : ev.error)?.slice(0, 180) || ev.prompt.slice(0, 120),
+            )
+            .catch(() => {});
+        }
+        return;
+      }
+      if (m.isLocal) onLocalEvent(ev);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [me, onLocalEvent],
+  );
+  const agentsBusy = useMemo(
+    () => machines.reduce((n, m) => n + (states[m.id]?.snapshot?.tasks ?? []).filter((t) => t.status === "queued" || t.status === "running").length, 0),
+    [machines, states],
   );
 
   const readings = useMemo(
@@ -189,7 +229,7 @@ export default function App() {
           key={m.id}
           machine={m}
           onState={onState}
-          onEvent={m.isLocal ? onLocalEvent : undefined}
+          onEvent={(ev) => onAnyEvent(m, ev)}
         />
       ))}
       {isMobile ? (
@@ -208,6 +248,7 @@ export default function App() {
           machines={machines}
           states={states}
           terminals={terminals}
+          agentsBusy={agentsBusy}
         />}
         <main className={`thin-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto ${isMobile ? "gap-3 px-2.5 pb-3" : "gap-4 px-4 pb-4"}`}>
           <UpdateBanner updates={updates} />
@@ -284,6 +325,9 @@ export default function App() {
                   onOpen={(id) => setView({ kind: "machine", id })}
                 />
               )}
+              {view.kind === "agents" && (
+                <AgentsView machines={machines} states={states} from={me} now={now} />
+              )}
               {view.kind === "machine" && selected && (
                 <MachineCard
                   machine={selected}
@@ -299,6 +343,7 @@ export default function App() {
                   requestedBy={me}
                   onSendFiles={(files) => sendTo(selected, files)}
                   onOpenTerminal={() => openTerminal(selected.id)}
+                  onOpenScreen={() => setScreenOf(selected.id)}
                 />
               )}
               {view.kind === "settings" && (
@@ -337,6 +382,7 @@ export default function App() {
           machines={machines}
           states={states}
           terminals={terminals}
+          agentsBusy={agentsBusy}
         />
       )}
       {!isMobile && <DropOverlay
@@ -346,6 +392,15 @@ export default function App() {
         onReject={transfers.reject}
       />}
       <TransfersTray transfers={transfers} now={now} />
+      {screenOf && machines.find((m) => m.id === screenOf) && (
+        <ScreenView
+          machine={machines.find((m) => m.id === screenOf)!}
+          name={states[screenOf]?.snapshot?.machine.machineName ?? machines.find((m) => m.id === screenOf)!.name}
+          from={me}
+          now={now}
+          onClose={() => setScreenOf(null)}
+        />
+      )}
     </div>
   );
 }

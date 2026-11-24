@@ -19,6 +19,16 @@ pub struct CollectorFile {
     /// Let paired PCs open a PowerShell here. Off unless turned on from this PC.
     #[serde(default)]
     pub allow_shell: bool,
+    /// Let paired devices take screenshots of this PC. Off unless turned on from this PC.
+    #[serde(default)]
+    pub allow_screen: bool,
+    /// Agent tasks from paired devices: "off" (default), "edits" or "full".
+    #[serde(default = "agent_off")]
+    pub agent_access: String,
+}
+
+fn agent_off() -> String {
+    "off".into()
 }
 
 #[derive(Debug, Clone)]
@@ -99,6 +109,8 @@ impl CollectorConfig {
                 token: new_token(),
                 inbox_dir: String::new(),
                 allow_shell: false,
+                allow_screen: false,
+                agent_access: agent_off(),
             },
         };
         if let Some(p) = ov.port {
@@ -132,6 +144,15 @@ impl CollectorConfig {
         read_file(&self.data_dir).map(|f| f.allow_shell).unwrap_or(false)
     }
 
+    pub fn allow_screen(&self) -> bool {
+        read_file(&self.data_dir).map(|f| f.allow_screen).unwrap_or(false)
+    }
+
+    /// Re-read each time, so turning it off takes effect at once.
+    pub fn agent_access(&self) -> String {
+        get_agent_access(&self.data_dir)
+    }
+
     pub fn db_path(&self) -> PathBuf {
         self.data_dir.join("fleet.db")
     }
@@ -158,6 +179,36 @@ pub fn set_allow_shell(data_dir: &Path, allow: bool) -> Result<bool> {
 
 pub fn get_allow_shell(data_dir: &Path) -> bool {
     read_file(data_dir).map(|f| f.allow_shell).unwrap_or(false)
+}
+
+/// Allow screenshots of this PC (only callable locally; there is no API for it).
+pub fn set_allow_screen(data_dir: &Path, allow: bool) -> Result<bool> {
+    let path = data_dir.join("collector.json");
+    let mut f = read_file(data_dir).with_context(|| format!("reading {}", path.display()))?;
+    f.allow_screen = allow;
+    write_json_atomic(&path, &f)?;
+    Ok(allow)
+}
+
+pub fn get_allow_screen(data_dir: &Path) -> bool {
+    read_file(data_dir).map(|f| f.allow_screen).unwrap_or(false)
+}
+
+/// Set agent access for this PC (only callable locally; there is no API for it).
+pub fn set_agent_access(data_dir: &Path, level: &str) -> Result<String> {
+    anyhow::ensure!(["off", "edits", "full"].contains(&level), "unknown access level {level}");
+    let path = data_dir.join("collector.json");
+    let mut f = read_file(data_dir).with_context(|| format!("reading {}", path.display()))?;
+    f.agent_access = level.into();
+    write_json_atomic(&path, &f)?;
+    Ok(f.agent_access)
+}
+
+pub fn get_agent_access(data_dir: &Path) -> String {
+    read_file(data_dir)
+        .map(|f| f.agent_access)
+        .filter(|a| ["edits", "full"].contains(&a.as_str()))
+        .unwrap_or_else(agent_off)
 }
 
 pub fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<()> {

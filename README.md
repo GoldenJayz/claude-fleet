@@ -8,6 +8,8 @@ A small Windows desktop app that shows **Claude Code usage** and **PC performanc
 - **Heavy processes**: anything using a lot of CPU or RAM for 10 s or more, with a safe **End process / End process tree** flow and a kill log.
 - **File transfer**: drag files onto the window and drop them on another PC.
 - **Remote terminal** (opt-in): a PowerShell on another PC, right in the dashboard.
+- **Agents** (opt-in): hand Claude Code a task to run on one of your PCs, watch it work, queue follow-ups.
+- **Screenshots** (opt-in): see another PC's screen from its page.
 - **Android app**: the same dashboard on your phone (see [Phone app](#phone-app-android)).
 
 Everything stays on your machines: no cloud services and no telemetry. The only outside calls are asking Anthropic for your plan usage (see [Plan usage](#plan-usage)) and checking GitHub for app updates (see [Updates](#updates)). The collector is a plain program that polls on a timer.
@@ -125,6 +127,20 @@ It's **off by default**. Turn it on, on the PC you want to reach, in **Settings 
 - At most 4 sessions at once.
 - Anyone with that PC's pairing code on your network can then run any command there as you. Traffic on a local network isn't encrypted, so only turn it on for networks you trust, or use Tailscale.
 
+## Agents
+
+**Agents** (sidebar, or the tab bar on the phone) hands a task to Claude Code on one of your PCs. Pick the PC, a folder on it (recent Claude Code folders are suggested), a permission mode and optionally a model, then type what you want done. That PC runs Claude Code headless (`claude -p`) in that folder, with its own Claude sign-in, and every dashboard shows the progress live: what Claude says and each tool it uses.
+
+- **Queue messages:** tasks run one at a time per PC; send more and they wait their turn. Open a task to **queue a follow-up**: it continues the same Claude conversation once the previous message is done. **Stop** ends a running task; **Remove** drops a queued one.
+- **Permission modes:** *Read-only* (plan; changes nothing), *Edit files* (file edits allowed, commands that need approval are skipped), *Auto* (Claude Code's auto mode) and *Full access* (runs anything without asking).
+- You get a notification on the device you sent it from when your task finishes or fails.
+- **Off by default.** On the PC that should take tasks: **Settings → System → Agent tasks** → *On* (read-only, edit files, auto) or *Full access* (also lets tasks run any command). It can only be turned on from that PC.
+- The task text goes to Claude Code on stdin, never on a command line. Tasks are logged in `agent_tasks` in `fleet.db`, and they use that PC's Claude plan.
+
+## Screenshots
+
+**Screen** on another PC's page shows that PC's screen (all monitors side by side). **Auto** takes a new one every 3 seconds; **Save** downloads it. It's **off by default**: turn it on, on the PC to be viewed, in **Settings → System → Allow screenshots**. That PC gets a notification when someone looks (at most once every 10 minutes per viewer).
+
 ## Phone app (Android)
 
 The phone app is the dashboard only: it shows your PCs, plan usage, prompts and processes, can end heavy processes, send files and open a remote terminal. It runs no collector, so the phone itself doesn't appear as a machine.
@@ -203,7 +219,7 @@ Layout:
 
 | Path | What |
 |---|---|
-| `crates/collector` | Collector library and `fleet-collector` CLI: metrics, GPU counters, log reader, SQLite, API, process control, status line, file receiving, remote shell |
+| `crates/collector` | Collector library and `fleet-collector` CLI: metrics, GPU counters, log reader, SQLite, API, process control, status line, file receiving, remote shell, agent tasks, screenshots |
 | `src-tauri` | Tauri app. Windows (`desktop.rs`): embeds the collector; window effects, tray, autostart, firewall and status-line commands. Android (`mobile.rs`): the dashboard only |
 | `src-tauri/gen/android` | Android project (Gradle) for the phone app |
 | `scripts/build-android.ps1` | Builds (and optionally installs) the phone app |

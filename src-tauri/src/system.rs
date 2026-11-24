@@ -191,6 +191,28 @@ pub fn set_remote_shell(enabled: bool) -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub fn get_allow_screen() -> bool {
+    fleet_collector::config::get_allow_screen(&data_dir())
+}
+
+/// Only this PC can allow screenshots of itself; there is no API for it.
+#[tauri::command]
+pub fn set_allow_screen(enabled: bool) -> Result<bool, String> {
+    fleet_collector::config::set_allow_screen(&data_dir(), enabled).map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
+pub fn get_agent_access() -> String {
+    fleet_collector::config::get_agent_access(&data_dir())
+}
+
+/// Only this PC can let other devices run Claude Code tasks on it; there is no API for it.
+#[tauri::command]
+pub fn set_agent_access(level: String) -> Result<String, String> {
+    fleet_collector::config::set_agent_access(&data_dir(), &level).map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
 pub fn inbox_dir() -> Result<String, String> {
     inbox().map(|p| p.display().to_string())
 }

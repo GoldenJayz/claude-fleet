@@ -56,6 +56,9 @@ pub fn open(path: &Path) -> Result<Connection> {
             id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, name TEXT NOT NULL,
             sent_name TEXT NOT NULL, size INTEGER NOT NULL, from_machine TEXT NOT NULL,
             ip TEXT NOT NULL, path TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS agent_tasks(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, created INTEGER NOT NULL, status TEXT NOT NULL,
+            data TEXT NOT NULL);
          CREATE TABLE IF NOT EXISTS shell_log(
             id INTEGER PRIMARY KEY AUTOINCREMENT, started INTEGER NOT NULL, ended INTEGER,
             from_machine TEXT NOT NULL, ip TEXT NOT NULL, shell TEXT NOT NULL);",
@@ -493,6 +496,60 @@ pub fn list_shell(conn: &Connection, limit: usize) -> Result<Vec<ShellSession>> 
         Ok(ShellSession { id: r.get(0)?, started: r.get(1)?, ended: r.get(2)?, from: r.get(3)?, ip: r.get(4)?, shell: r.get(5)? })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
+}
+
+pub fn insert_agent_task(conn: &Connection, t: &crate::types::AgentTask) -> Result<i64> {
+    conn.execute(
+        "INSERT INTO agent_tasks(created, status, data) VALUES(?1, ?2, ?3)",
+        params![t.created, t.status, serde_json::to_string(t)?],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn update_agent_task(conn: &Connection, t: &crate::types::AgentTask) -> Result<()> {
+    conn.execute("UPDATE agent_tasks SET status=?2, data=?3 WHERE id=?1", params![t.id, t.status, serde_json::to_string(t)?])?;
+    Ok(())
+}
+
+fn agent_row(id: i64, data: String) -> Option<crate::types::AgentTask> {
+    let mut t: crate::types::AgentTask = serde_json::from_str(&data).ok()?;
+    t.id = id;
+    t.step_count = t.steps.len().max(t.step_count);
+    Some(t)
+}
+
+pub fn get_agent_task(conn: &Connection, id: i64) -> Result<Option<crate::types::AgentTask>> {
+    let data: Option<String> = conn.query_row("SELECT data FROM agent_tasks WHERE id=?1", params![id], |r| r.get(0)).ok();
+    Ok(data.and_then(|d| agent_row(id, d)))
+}
+
+/// Newest first, without steps.
+pub fn list_agent_tasks(conn: &Connection, limit: usize) -> Result<Vec<crate::types::AgentTask>> {
+    let mut stmt = conn.prepare("SELECT id, data FROM agent_tasks ORDER BY id DESC LIMIT ?1")?;
+    let rows = stmt.query_map(params![limit as i64], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+    Ok(rows
+        .filter_map(|r| r.ok())
+        .filter_map(|(id, d)| agent_row(id, d))
+        .map(|mut t| {
+            t.steps.clear();
+            t
+        })
+        .collect())
+}
+
+/// Tasks a crash or restart interrupted.
+pub fn fail_interrupted_tasks(conn: &Connection, now: i64) -> Result<()> {
+    let mut stmt = conn.prepare("SELECT id, data FROM agent_tasks WHERE status IN ('queued','running')")?;
+    let rows: Vec<(i64, String)> = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.filter_map(|r| r.ok()).collect();
+    for (id, d) in rows {
+        if let Some(mut t) = agent_row(id, d) {
+            t.status = "failed".into();
+            t.ended = Some(now);
+            t.error = Some("Claude Fleet restarted before this task finished.".into());
+            update_agent_task(conn, &t)?;
+        }
+    }
+    Ok(())
 }
 
 /// Sessions left open by a crash or power loss.

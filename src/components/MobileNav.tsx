@@ -55,7 +55,9 @@ export function MobileNav({
   machines,
   states,
   terminals,
+  agentsBusy = 0,
 }: {
+  agentsBusy?: number;
   view: View;
   onView: (v: View) => void;
   machines: MachineConfig[];
@@ -66,6 +68,7 @@ export function MobileNav({
   return (
     <nav className="glass mx-2 mb-2 flex shrink-0 gap-1 overflow-x-auto rounded-3xl p-1.5">
       <Tab active={view.kind === 'overview'} icon={icons.overview} label="Overview" onClick={() => onView({ kind: 'overview' })} />
+      <Tab active={view.kind === 'agents'} icon={icons.agents} label="Agents" dot={agentsBusy ? 'bg-violet-300' : undefined} onClick={() => onView({ kind: 'agents' })} />
       {machines.map((m) => (
         <Tab
           key={m.id}

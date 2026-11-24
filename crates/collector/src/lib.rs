@@ -2,6 +2,7 @@
 //! system metrics, reads Claude Code's local logs, keeps history in SQLite and serves a
 //! token-protected API on the LAN. Used standalone (`fleet-collector`) or embedded in the app.
 
+pub mod agent;
 pub mod api;
 pub mod claude;
 pub mod config;
@@ -10,6 +11,7 @@ pub mod files;
 pub mod gpu;
 pub mod metrics;
 pub mod procs;
+pub mod screen;
 pub mod shell;
 pub mod state;
 pub mod statusline;

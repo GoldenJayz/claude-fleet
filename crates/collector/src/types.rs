@@ -336,6 +336,9 @@ pub struct Snapshot {
     pub claude: ClaudeSummary,
     pub plan: Option<PlanReading>,
     pub status_line: StatusLineState,
+    /// Recent agent tasks (without steps).
+    #[serde(default)]
+    pub tasks: Vec<AgentTask>,
 }
 
 /// Messages pushed on /v1/stream.
@@ -353,6 +356,73 @@ pub enum StreamEvent {
     FileReceived(ReceivedFile),
     /// A remote shell session started (`ended` empty) or finished.
     Shell(ShellSession),
+    /// An agent task was queued or changed state (sent without its steps).
+    Task(AgentTask),
+    /// Someone took a screenshot of this PC.
+    #[serde(rename_all = "camelCase")]
+    ScreenViewed { ts: i64, from: String, ip: String },
+    /// New progress on a running agent task.
+    #[serde(rename_all = "camelCase")]
+    TaskStep { task_id: i64, step: AgentStep },
+}
+
+/// A job handed to Claude Code on this PC by another device.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTask {
+    pub id: i64,
+    pub created: i64,
+    pub started: Option<i64>,
+    pub ended: Option<i64>,
+    /// Device that sent it, as it reported its name.
+    pub from: String,
+    pub ip: String,
+    pub prompt: String,
+    pub cwd: String,
+    /// Claude Code permission mode: plan, acceptEdits, auto or bypassPermissions.
+    pub mode: String,
+    pub model: Option<String>,
+    pub effort: Option<String>,
+    /// Claude session this continues, for follow-ups.
+    pub resume: Option<String>,
+    /// The earlier task this continues.
+    #[serde(default)]
+    pub follow_up_of: Option<i64>,
+    /// queued, running, done, failed or cancelled.
+    pub status: String,
+    pub session_id: Option<String>,
+    /// Claude's final answer.
+    pub result: Option<String>,
+    pub error: Option<String>,
+    pub cost_usd: Option<f64>,
+    pub turns: Option<i64>,
+    pub step_count: usize,
+    /// Progress: Claude's messages and the tools it used. Empty in lists.
+    #[serde(default)]
+    pub steps: Vec<AgentStep>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStep {
+    pub ts: i64,
+    /// note, text, tool, toolError or error.
+    pub kind: String,
+    pub text: String,
+}
+
+/// Whether this PC takes agent tasks, and what it offers the composer.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStatus {
+    /// off, edits or full.
+    pub access: String,
+    pub machine: String,
+    pub running: Option<i64>,
+    pub queued: usize,
+    /// Folders Claude Code was recently used in here.
+    pub folders: Vec<String>,
+    pub home: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
