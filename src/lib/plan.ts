@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { PlanReading } from '../types';
 
-/** A status-line reading newer than this is shown as current. */
+/** A reading newer than this is shown as current (Anthropic is asked every 5 minutes). */
 export const FRESH_MS = 10 * 60_000;
 
 /*
@@ -25,7 +25,7 @@ export interface WindowView {
 
 export interface PlanView {
   reading: PlanReading | null;
-  /** Machine whose status line produced the reading. */
+  /** Machine that produced the reading. */
   source: string | null;
   fresh: boolean;
   windows: WindowView[];

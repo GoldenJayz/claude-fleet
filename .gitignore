@@ -3,4 +3,4 @@ node_modules/
 dist/
 *.db
 *.db-*
-src-tauri/gen/
+src-tauri/gen/schemas/

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { CollectorState } from '../lib/collector';
 import type { MachineConfig } from '../types';
 
-export type View = { kind: 'overview' } | { kind: 'machine'; id: string } | { kind: 'settings' };
+export type View = { kind: 'overview' } | { kind: 'machine'; id: string } | { kind: 'terminal'; id: string } | { kind: 'settings' };
 
 function Item({
   active,
@@ -54,7 +54,7 @@ function statusColor(s?: CollectorState) {
   }
 }
 
-const icons = {
+export const icons = {
   overview: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="3" y="3" width="7.5" height="7.5" rx="2" />
@@ -67,6 +67,12 @@ const icons = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
+  ),
+  terminal: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="2.5" y="4" width="19" height="16" rx="2.5" />
+      <path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5" />
     </svg>
   ),
   pc: (
@@ -84,6 +90,7 @@ export function Sidebar({
   onToggle,
   machines,
   states,
+  terminals,
 }: {
   view: View;
   onView: (v: View) => void;
@@ -91,6 +98,8 @@ export function Sidebar({
   onToggle: () => void;
   machines: MachineConfig[];
   states: Record<string, CollectorState>;
+  /** Machine ids with an open terminal. */
+  terminals: string[];
 }) {
   return (
     <motion.nav
@@ -149,6 +158,24 @@ export function Sidebar({
                 ) : undefined
               }
               onClick={() => onView({ kind: 'machine', id: m.id })}
+            />
+          );
+        })}
+        {terminals.length > 0 && !collapsed && <div className="mt-4 mb-1 px-3 text-[10px] font-medium uppercase tracking-[0.16em] text-white/35">Terminals</div>}
+        {terminals.length > 0 && collapsed && <div className="mx-3 my-3 h-px bg-white/10" />}
+        {terminals.map((id) => {
+          const m = machines.find((x) => x.id === id);
+          if (!m) return null;
+          const label = states[id]?.snapshot?.machine.machineName ?? m.name;
+          return (
+            <Item
+              key={`t-${id}`}
+              active={view.kind === 'terminal' && view.id === id}
+              collapsed={collapsed}
+              icon={icons.terminal}
+              label={label}
+              sub="PowerShell"
+              onClick={() => onView({ kind: 'terminal', id })}
             />
           );
         })}

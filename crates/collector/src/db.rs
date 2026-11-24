@@ -51,7 +51,14 @@ pub fn open(path: &Path) -> Result<Connection> {
          CREATE TABLE IF NOT EXISTS kill_log(
             id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, machine TEXT NOT NULL,
             pid INTEGER NOT NULL, name TEXT NOT NULL, tree INTEGER NOT NULL,
-            requested_by TEXT NOT NULL, ok INTEGER NOT NULL, detail TEXT);",
+            requested_by TEXT NOT NULL, ok INTEGER NOT NULL, detail TEXT);
+         CREATE TABLE IF NOT EXISTS received_files(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, name TEXT NOT NULL,
+            sent_name TEXT NOT NULL, size INTEGER NOT NULL, from_machine TEXT NOT NULL,
+            ip TEXT NOT NULL, path TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS shell_log(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, started INTEGER NOT NULL, ended INTEGER,
+            from_machine TEXT NOT NULL, ip TEXT NOT NULL, shell TEXT NOT NULL);",
     )?;
     conn.execute(
         "INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?1)",
@@ -437,6 +444,61 @@ pub fn list_kills(conn: &Connection, limit: usize) -> Result<Vec<KillLogEntry>> 
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
+}
+
+pub fn insert_received(conn: &Connection, f: &ReceivedFile) -> Result<i64> {
+    conn.execute(
+        "INSERT INTO received_files(ts, name, sent_name, size, from_machine, ip, path) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+        params![f.ts, f.name, f.sent_name, f.size as i64, f.from, f.ip, f.path],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn list_received(conn: &Connection, limit: usize) -> Result<Vec<ReceivedFile>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, ts, name, sent_name, size, from_machine, ip, path FROM received_files ORDER BY ts DESC LIMIT ?1",
+    )?;
+    let rows = stmt.query_map(params![limit as i64], |r| {
+        Ok(ReceivedFile {
+            id: r.get(0)?,
+            ts: r.get(1)?,
+            name: r.get(2)?,
+            sent_name: r.get(3)?,
+            size: r.get::<_, i64>(4)? as u64,
+            from: r.get(5)?,
+            ip: r.get(6)?,
+            path: r.get(7)?,
+        })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+pub fn upsert_shell(conn: &Connection, s: &ShellSession) -> Result<i64> {
+    if s.id == 0 {
+        conn.execute(
+            "INSERT INTO shell_log(started, ended, from_machine, ip, shell) VALUES(?1,?2,?3,?4,?5)",
+            params![s.started, s.ended, s.from, s.ip, s.shell],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute("UPDATE shell_log SET ended=?2 WHERE id=?1", params![s.id, s.ended])?;
+        Ok(s.id)
+    }
+}
+
+pub fn list_shell(conn: &Connection, limit: usize) -> Result<Vec<ShellSession>> {
+    let mut stmt =
+        conn.prepare("SELECT id, started, ended, from_machine, ip, shell FROM shell_log ORDER BY started DESC LIMIT ?1")?;
+    let rows = stmt.query_map(params![limit as i64], |r| {
+        Ok(ShellSession { id: r.get(0)?, started: r.get(1)?, ended: r.get(2)?, from: r.get(3)?, ip: r.get(4)?, shell: r.get(5)? })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// Sessions left open by a crash or power loss.
+pub fn close_stale_shells(conn: &Connection, now: i64) -> Result<()> {
+    conn.execute("UPDATE shell_log SET ended=?1 WHERE ended IS NULL", params![now])?;
+    Ok(())
 }
 
 pub fn last_activity(conn: &Connection) -> Result<Option<i64>> {

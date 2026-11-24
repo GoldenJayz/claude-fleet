@@ -142,7 +142,7 @@ export function ProcessList({
             {heavy.length === 0 && <li className="px-1 text-[12.5px] text-white/45">Nothing heavy right now.</li>}
           </ul>
 
-          <div className="mb-1.5 grid grid-cols-[1fr_84px_66px_44px] gap-2 px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-white/40">
+          <div className="mb-1.5 grid grid-cols-[1fr_64px_56px_40px] md:grid-cols-[1fr_84px_66px_44px] gap-2 px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-white/40">
             <span>Top processes</span>
             <span className="text-right">CPU</span>
             <span className="text-right">Memory</span>
@@ -152,7 +152,7 @@ export function ProcessList({
             {rows.map((p) => (
               <li
                 key={p.pid}
-                className="group grid grid-cols-[1fr_84px_66px_44px] items-center gap-2 rounded-xl px-2 py-1.5 text-[12.5px] hover:bg-white/[0.04]"
+                className="group grid grid-cols-[1fr_64px_56px_40px] md:grid-cols-[1fr_84px_66px_44px] items-center gap-2 rounded-xl px-2 py-1.5 text-[12.5px] hover:bg-white/[0.04]"
                 title={p.exe ?? p.name}
               >
                 <span className="flex min-w-0 items-baseline gap-2">
@@ -161,7 +161,7 @@ export function ProcessList({
                 </span>
                 <span className="flex items-center justify-end gap-2 tabular">
                   <span className="h-1 w-7 overflow-hidden rounded-full bg-white/[0.07]">
-                    <motion.span className="block h-full rounded-full bg-gradient-to-r from-cyan-300 to-blue-500" animate={{ width: `${Math.min(100, p.cpu)}%` }} />
+                    <span className="block h-full rounded-full bg-gradient-to-r from-cyan-300 to-blue-500 transition-[width] duration-300" style={{ width: `${Math.min(100, p.cpu)}%` }} />
                   </span>
                   <span className="w-10 text-right text-white/75">{p.cpu.toFixed(1)}%</span>
                 </span>

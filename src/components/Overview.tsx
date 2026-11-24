@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import type { CollectorState } from '../lib/collector';
 import { ago, bytes, tokens } from '../lib/format';
+import { isMobile } from '../lib/machines';
 import type { MachineConfig } from '../types';
 import { Chip } from './Chip';
 import { PALETTES, RingGauge } from './RingGauge';
@@ -13,13 +14,14 @@ function MachineTile({ machine, state, now, onOpen }: { machine: MachineConfig; 
   const disk = m?.disks.find((d) => d.mount.toUpperCase().startsWith('C:')) ?? m?.disks[0];
   const gpu = m ? [...m.gpus].sort((a, b) => (b.memoryTotal ?? 0) - (a.memoryTotal ?? 0))[0] : undefined;
   const working = online ? (snap?.claude.working.length ?? 0) : 0;
+  const ring = isMobile ? 70 : 78;
 
   return (
     <motion.button
       layout
       onClick={onOpen}
       whileHover={{ y: -2 }}
-      className="glass flex flex-col gap-4 rounded-3xl p-5 text-left transition-colors hover:border-white/20"
+      className="glass flex flex-col gap-4 rounded-3xl p-4 text-left md:p-5 transition-colors hover:border-white/20"
     >
       <div className="flex w-full items-start justify-between gap-3">
         <div className="min-w-0">
@@ -42,10 +44,10 @@ function MachineTile({ machine, state, now, onOpen }: { machine: MachineConfig; 
       </div>
 
       <div className={`flex w-full items-center justify-between gap-2 ${online ? '' : 'opacity-50'}`}>
-        <RingGauge size={78} stroke={7} label="CPU" value={m?.cpu ?? null} palette={PALETTES.cpu} />
-        <RingGauge size={78} stroke={7} label="RAM" value={m ? (m.memUsed * 100) / m.memTotal : null} palette={PALETTES.ram} />
-        <RingGauge size={78} stroke={7} label="Disk" value={disk ? ((disk.total - disk.available) * 100) / disk.total : null} palette={PALETTES.disk} />
-        <RingGauge size={78} stroke={7} label="GPU" value={gpu?.usage ?? null} palette={PALETTES.gpu} />
+        <RingGauge size={ring} stroke={7} label="CPU" value={m?.cpu ?? null} palette={PALETTES.cpu} />
+        <RingGauge size={ring} stroke={7} label="RAM" value={m ? (m.memUsed * 100) / m.memTotal : null} palette={PALETTES.ram} />
+        <RingGauge size={ring} stroke={7} label="Disk" value={disk ? ((disk.total - disk.available) * 100) / disk.total : null} palette={PALETTES.disk} />
+        <RingGauge size={ring} stroke={7} label="GPU" value={gpu?.usage ?? null} palette={PALETTES.gpu} />
       </div>
 
       <div className="grid w-full grid-cols-3 gap-3 border-t border-white/10 pt-3 text-[12px] tabular">
@@ -84,8 +86,8 @@ export function Overview({
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <section className="glass rounded-3xl p-5">
+    <div className="flex flex-col gap-3 md:gap-4">
+      <section className="glass rounded-3xl p-4 md:p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-[15px] font-semibold">Working now</h2>
           <span className="text-[12px] text-white/45">{working.length ? `${working.length} in progress` : 'idle'}</span>

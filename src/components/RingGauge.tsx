@@ -53,7 +53,7 @@ export function RingGauge({ value, palette, size = 104, stroke = 9, label, dimme
           strokeDasharray={c}
           initial={{ strokeDashoffset: c }}
           animate={{ strokeDashoffset: c * (1 - v / 100) }}
-          transition={{ type: 'spring', stiffness: 60, damping: 18 }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
           style={{ filter: `drop-shadow(0 0 6px ${hot ? 'rgba(244,63,94,0.6)' : palette.glow})` }}
         />
       </svg>

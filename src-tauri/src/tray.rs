@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, Wry};
+use tauri::{AppHandle, Emitter, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt;
 
 struct AutostartItem(CheckMenuItem<Wry>);
@@ -16,6 +16,8 @@ pub fn show_main(app: &AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        // The dashboard pauses redrawing while hidden; tell it to resume.
+        let _ = w.emit("fleet://visible", true);
     }
 }
 
@@ -23,6 +25,7 @@ pub fn show_main(app: &AppHandle) {
 pub fn hide_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.hide();
+        let _ = w.emit("fleet://visible", false);
     }
     if !TOLD_ABOUT_TRAY.swap(true, Ordering::SeqCst) {
         let _ = crate::system::notify(

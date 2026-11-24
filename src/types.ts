@@ -12,6 +12,8 @@ export interface MachineInfo {
   totalMemory: number;
   bootTimeMs: number;
   port: number;
+  /** Optional API features, e.g. 'files'. Missing on older collectors. */
+  features?: string[];
 }
 
 export interface DiskInfo {
@@ -203,6 +205,8 @@ export interface PlanReading {
   fiveHour: LimitWindow | null;
   sevenDay: LimitWindow | null;
   claudeVersion: string | null;
+  /** 'anthropic' (asked Anthropic directly) or 'statusLine'. Missing on older collectors. */
+  source?: 'anthropic' | 'statusLine';
 }
 
 export interface StatusLineState {
@@ -226,7 +230,37 @@ export type StreamEvent =
   | ({ type: 'snapshot' } & Snapshot)
   | { type: 'metrics'; sample: MetricsSample; processes: ProcessInfo[]; heavy: HeavyProcess[] }
   | ({ type: 'claude' } & ClaudeSummary)
-  | ({ type: 'plan' } & PlanReading);
+  | ({ type: 'plan' } & PlanReading)
+  | ({ type: 'fileReceived' } & ReceivedFile)
+  | ({ type: 'shell' } & ShellSession);
+
+/** A file another PC sent to this one. */
+export interface ReceivedFile {
+  id: number;
+  ts: number;
+  name: string;
+  sentName: string;
+  size: number;
+  from: string;
+  ip: string;
+  path: string;
+}
+
+export interface ShellSession {
+  id: number;
+  started: number;
+  ended: number | null;
+  from: string;
+  ip: string;
+  shell: string;
+}
+
+export interface ShellStatus {
+  enabled: boolean;
+  shell: string;
+  active: number;
+  machine: string;
+}
 
 /** One entry in the dashboard's machine list. */
 export interface MachineConfig {

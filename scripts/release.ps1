@@ -1,0 +1,84 @@
+# Publishes a new Claude Fleet version: every installed copy (Windows and the phone) offers it.
+#   .\scripts\release.ps1 -Version 0.2.1 -Notes "What changed"
+#
+# 1. Sets the version in package.json, Cargo.toml and tauri.conf.json.
+# 2. Builds the Windows installer (signed with the updater key) and the Android APK.
+# 3. Writes latest.json (what the apps check), commits the version bump, pushes, and creates the
+#    GitHub release vX.Y.Z with the installers attached.
+#
+# Signing keys stay in %APPDATA%\ClaudeFleet\updater-signing and android-signing (never in the repo).
+param(
+    [Parameter(Mandatory = $true)][string]$Version,
+    [string]$Notes = '',
+    [switch]$SkipAndroid
+)
+$ErrorActionPreference = 'Stop'
+$root = Split-Path $PSScriptRoot -Parent
+Set-Location $root
+$repo = 'GoldenJayz/claude-fleet'
+
+if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version must look like 1.2.3 (got '$Version')." }
+$conf = Join-Path $root 'src-tauri\tauri.conf.json'
+$current = (Get-Content $conf -Raw | ConvertFrom-Json).version
+if ([version]$Version -le [version]$current) { throw "Version $Version must be newer than the current $current." }
+if (git status --porcelain) { throw 'Commit or stash your changes first, so the release matches the pushed code.' }
+gh auth status *> $null; if ($LASTEXITCODE -ne 0) { throw 'Sign in to GitHub first: gh auth login' }
+
+# --- 1. version bump ---------------------------------------------------------------------------
+function Set-Text($path, $pattern, $replacement) {
+    $text = [IO.File]::ReadAllText($path)
+    $new = [regex]::Replace($text, $pattern, $replacement, 1)
+    if ($new -eq $text) { throw "Couldn't set the version in $path" }
+    [IO.File]::WriteAllText($path, $new)
+}
+Set-Text (Join-Path $root 'package.json') '"version":\s*"[^"]+"' "`"version`": `"$Version`""
+Set-Text $conf '"version":\s*"[^"]+"' "`"version`": `"$Version`""
+Set-Text (Join-Path $root 'Cargo.toml') '(\[workspace\.package\]\s*\r?\nversion\s*=\s*)"[^"]+"' "`${1}`"$Version`""
+
+# --- 2. builds ---------------------------------------------------------------------------------
+$keys = Join-Path $env:APPDATA 'ClaudeFleet\updater-signing'
+$env:TAURI_SIGNING_PRIVATE_KEY = Join-Path $keys 'claude-fleet.key'
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = (Get-Content (Join-Path $keys 'password.txt') -Raw).Trim()
+npm run tauri build
+if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
+$msi = Get-Item (Join-Path $root "target\release\bundle\msi\Claude Fleet_${Version}_x64_en-US.msi")
+$sig = Get-Content "$($msi.FullName).sig" -Raw
+Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY, Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+
+$out = Join-Path $root "target\release-$Version"
+New-Item -ItemType Directory -Force $out | Out-Null
+# GitHub turns spaces in asset names into dots, so use a name without spaces.
+$msiName = "ClaudeFleet_${Version}_x64_en-US.msi"
+Copy-Item $msi.FullName (Join-Path $out $msiName) -Force
+$assets = @((Join-Path $out $msiName))
+$base = "https://github.com/$repo/releases/download/v$Version"
+$platforms = [ordered]@{ 'windows-x86_64' = [ordered]@{ signature = $sig.Trim(); url = "$base/$msiName" } }
+
+if (-not $SkipAndroid) {
+    & (Join-Path $PSScriptRoot 'build-android.ps1')
+    $apkName = "ClaudeFleet_${Version}_arm64.apk"
+    Copy-Item (Join-Path $root 'target\android\ClaudeFleet-arm64.apk') (Join-Path $out $apkName) -Force
+    $sha = (Get-FileHash (Join-Path $out $apkName) -Algorithm SHA256).Hash.ToLower()
+    $platforms['android-aarch64'] = [ordered]@{ url = "$base/$apkName"; sha256 = $sha }
+    $assets += (Join-Path $out $apkName)
+}
+
+$manifest = [ordered]@{
+    version   = $Version
+    notes     = $Notes
+    pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    platforms = $platforms
+}
+$latest = Join-Path $out 'latest.json'
+[IO.File]::WriteAllText($latest, ($manifest | ConvertTo-Json -Depth 5))
+$assets += $latest
+
+# --- 3. publish --------------------------------------------------------------------------------
+git add package.json Cargo.toml Cargo.lock src-tauri/tauri.conf.json
+git commit -m "Release v$Version"
+git push
+if ($LASTEXITCODE -ne 0) { throw 'git push failed; the release was not published.' }
+$notesArg = if ($Notes) { $Notes } else { "Claude Fleet $Version" }
+gh release create "v$Version" @assets --repo $repo --target (git rev-parse HEAD) --title "Claude Fleet $Version" --notes $notesArg
+if ($LASTEXITCODE -ne 0) { throw 'Creating the GitHub release failed.' }
+Write-Host "Released v$Version. Installed copies will offer the update within a few hours (or Settings > About > Check for updates)."

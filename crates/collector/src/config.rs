@@ -13,6 +13,12 @@ pub struct CollectorFile {
     pub machine_name: String,
     pub port: u16,
     pub token: String,
+    /// Where files sent from other PCs are saved. Empty = `Downloads\Claude Fleet`.
+    #[serde(default)]
+    pub inbox_dir: String,
+    /// Let paired PCs open a PowerShell here. Off unless turned on from this PC.
+    #[serde(default)]
+    pub allow_shell: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +30,8 @@ pub struct CollectorConfig {
     pub data_dir: PathBuf,
     /// Claude Code's config dir (`%USERPROFILE%\.claude`, or `CLAUDE_CONFIG_DIR`).
     pub claude_dir: PathBuf,
+    /// Received files land here.
+    pub inbox_dir: PathBuf,
 }
 
 /// Optional overrides (from the CLI or the desktop app).
@@ -33,6 +41,7 @@ pub struct Overrides {
     pub claude_dir: Option<PathBuf>,
     pub port: Option<u16>,
     pub machine_name: Option<String>,
+    pub inbox_dir: Option<PathBuf>,
 }
 
 pub fn default_data_dir() -> PathBuf {
@@ -51,6 +60,15 @@ pub fn default_claude_dir() -> PathBuf {
     directories::BaseDirs::new()
         .map(|b| b.home_dir().join(".claude"))
         .unwrap_or_else(|| PathBuf::from(".claude"))
+}
+
+/// `%USERPROFILE%\Downloads\Claude Fleet`.
+pub fn default_inbox_dir() -> PathBuf {
+    directories::UserDirs::new()
+        .and_then(|u| u.download_dir().map(|d| d.to_path_buf()))
+        .or_else(|| directories::BaseDirs::new().map(|b| b.home_dir().join("Downloads")))
+        .unwrap_or_else(|| PathBuf::from("Downloads"))
+        .join("Claude Fleet")
 }
 
 pub fn hostname() -> String {
@@ -79,6 +97,8 @@ impl CollectorConfig {
                 machine_name: hostname(),
                 port: DEFAULT_PORT,
                 token: new_token(),
+                inbox_dir: String::new(),
+                allow_shell: false,
             },
         };
         if let Some(p) = ov.port {
@@ -92,13 +112,24 @@ impl CollectorConfig {
         }
         write_json_atomic(&path, &file)?;
 
+        let inbox_dir = ov
+            .inbox_dir
+            .clone()
+            .or_else(|| (!file.inbox_dir.trim().is_empty()).then(|| PathBuf::from(file.inbox_dir.trim())))
+            .unwrap_or_else(default_inbox_dir);
         Ok(Self {
+            inbox_dir,
             machine_name: file.machine_name,
             port: file.port,
             token: file.token,
             data_dir,
             claude_dir: ov.claude_dir.clone().unwrap_or_else(default_claude_dir),
         })
+    }
+
+    /// Read fresh from disk, so a change made in Settings applies to the next session at once.
+    pub fn allow_shell(&self) -> bool {
+        read_file(&self.data_dir).map(|f| f.allow_shell).unwrap_or(false)
     }
 
     pub fn db_path(&self) -> PathBuf {
@@ -109,6 +140,24 @@ impl CollectorConfig {
     pub fn statusline_capture_path(&self) -> PathBuf {
         self.data_dir.join("statusline.json")
     }
+}
+
+fn read_file(data_dir: &Path) -> Option<CollectorFile> {
+    let s = std::fs::read_to_string(data_dir.join("collector.json")).ok()?;
+    serde_json::from_str(&s).ok()
+}
+
+/// Turn the remote shell on or off for this PC (only callable locally; there is no API for it).
+pub fn set_allow_shell(data_dir: &Path, allow: bool) -> Result<bool> {
+    let path = data_dir.join("collector.json");
+    let mut f = read_file(data_dir).with_context(|| format!("reading {}", path.display()))?;
+    f.allow_shell = allow;
+    write_json_atomic(&path, &f)?;
+    Ok(allow)
+}
+
+pub fn get_allow_shell(data_dir: &Path) -> bool {
+    read_file(data_dir).map(|f| f.allow_shell).unwrap_or(false)
 }
 
 pub fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<()> {

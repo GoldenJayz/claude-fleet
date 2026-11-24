@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "Phone app: core APIs only (no window controls)",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "android",
+    "iOS"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

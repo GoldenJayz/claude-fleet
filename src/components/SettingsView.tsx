@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { CollectorState } from '../lib/collector';
-import { isTauri, loadAddresses, pairingCode, type LanAddress, type LocalCollector } from '../lib/machines';
+import { isDesktopApp, isMobile, loadAddresses, pairingCode, type LanAddress, type LocalCollector } from '../lib/machines';
 import type { MachineConfig } from '../types';
 import { MachinesSettings } from './MachinesSettings';
 import { SystemSettings } from './SystemSettings';
 import type { UiSettings, WindowEffect } from '../lib/settings';
 import { Chip } from './Chip';
+import { isTauri } from '../lib/machines';
+import type { Updates } from '../lib/updates';
 
 function Section({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
   return (
@@ -73,7 +75,47 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
   );
 }
 
+function AboutSection({ updates }: { updates: Updates }) {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (isTauri) import('@tauri-apps/api/app').then((m) => m.getVersion()).then(setVersion).catch(() => {});
+  }, []);
+  const p = updates.phase;
+  const status =
+    p.kind === 'checking'
+      ? 'Checking…'
+      : p.kind === 'upToDate'
+        ? 'You have the latest version.'
+        : p.kind === 'available'
+          ? `Version ${p.info.version} is available.`
+          : p.kind === 'downloading' || p.kind === 'installing'
+            ? 'Updating…'
+            : p.kind === 'error' && !p.info
+              ? `Couldn’t check: ${p.message}`
+              : 'Checks automatically every few hours.';
+  return (
+    <Section title="About">
+      <Row label={`Claude Fleet ${version ?? ''}`} hint={status}>
+        {p.kind === 'available' ? (
+          <button onClick={updates.install} className="rounded-lg bg-violet-500/35 px-2.5 py-1 text-[12px] text-violet-50 ring-1 ring-violet-300/40 hover:bg-violet-500/50">
+            Update now
+          </button>
+        ) : (
+          <button
+            disabled={!isTauri || p.kind === 'checking' || p.kind === 'downloading' || p.kind === 'installing'}
+            onClick={() => updates.check(true)}
+            className="rounded-lg bg-white/[0.08] px-2.5 py-1 text-[12px] text-white/80 ring-1 ring-white/10 hover:bg-white/[0.14] disabled:opacity-40"
+          >
+            Check for updates
+          </button>
+        )}
+      </Row>
+    </Section>
+  );
+}
+
 export function SettingsView({
+  updates,
   settings,
   update,
   local,
@@ -82,6 +124,7 @@ export function SettingsView({
   states,
   onMachinesChange,
 }: {
+  updates: Updates;
   settings: UiSettings;
   update: (p: Partial<UiSettings>) => void;
   local: LocalCollector | null;
@@ -102,7 +145,14 @@ export function SettingsView({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <Section title="Appearance" desc="How the window sits on your desktop.">
+      {isMobile && (
+        <Section title="Machines" desc="Your PCs running Claude Fleet. On each PC, open Settings → This PC → Copy code, get the code to this phone, and paste it here.">
+          <MachinesSettings saved={saved} states={states} onChange={onMachinesChange} />
+        </Section>
+      )}
+
+      <Section title="Appearance" desc={isMobile ? undefined : 'How the window sits on your desktop.'}>
+        {!isMobile && (<>
         <Row label="Transparency" hint="Lower is more see-through. Cards stay a little darker so text is readable.">
           <span className="w-10 text-right text-[12px] text-white/55 tabular">{Math.round((1 - settings.tint) * 100)}%</span>
           <input
@@ -114,7 +164,7 @@ export function SettingsView({
             onChange={(e) => update({ tint: 1 - Number(e.target.value) / 100 })}
           />
         </Row>
-        <Row label="Window backdrop" hint={isTauri ? 'Blur: Acrylic. Wallpaper tint: Mica. Clear shows your desktop sharp.' : 'Only available in the desktop app.'}>
+        <Row label="Window backdrop" hint={isDesktopApp ? 'Blur: Acrylic. Wallpaper tint: Mica. Clear shows your desktop sharp.' : 'Only available in the desktop app.'}>
           <Segmented<WindowEffect>
             value={settings.effect}
             onChange={(effect) => update({ effect })}
@@ -125,11 +175,13 @@ export function SettingsView({
             ]}
           />
         </Row>
+        </>)}
         <Row label="Reduce motion" hint="Turns off animations and pulsing indicators.">
           <Toggle on={settings.reduceMotion} onChange={(reduceMotion) => update({ reduceMotion })} />
         </Row>
       </Section>
 
+      {!isMobile && (<>
       <Section title="This PC" desc="Other machines use these details to show this PC on their dashboard.">
         <Row label="Machine name">
           <span className="text-[13px] text-white/80">{local?.machineName ?? '–'}</span>
@@ -191,6 +243,15 @@ export function SettingsView({
       <Section title="Machines" desc="Other PCs running Claude Fleet. Each gets its own card and sidebar entry.">
         <MachinesSettings saved={saved} states={states} onChange={onMachinesChange} />
       </Section>
+      </>)}
+
+      <AboutSection updates={updates} />
+
+      {isMobile && (
+        <p className="px-2 text-[11.5px] leading-relaxed text-white/40">
+          This phone only views your PCs; it runs no collector. It talks to them directly over your Wi-Fi (or Tailscale when you’re away), and nothing goes through a server. Pairing codes are kept in this app’s private storage.
+        </p>
+      )}
     </div>
   );
 }

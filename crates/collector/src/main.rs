@@ -20,6 +20,9 @@ struct Cli {
     /// Machine name shown on the dashboard (saved for next time).
     #[arg(long, global = true)]
     name: Option<String>,
+    /// Folder for files received from other PCs (default: Downloads\Claude Fleet).
+    #[arg(long, global = true)]
+    inbox: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -51,6 +54,7 @@ async fn main() -> anyhow::Result<()> {
         claude_dir: cli.claude_dir,
         port: cli.port,
         machine_name: cli.name,
+        inbox_dir: cli.inbox,
     })?;
 
     match cli.cmd.unwrap_or(Cmd::Run) {

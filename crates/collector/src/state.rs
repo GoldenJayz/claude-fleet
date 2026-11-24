@@ -91,6 +91,31 @@ impl Shared {
         }
     }
 
+    /// Log a finished incoming file and tell connected dashboards about it.
+    pub fn record_received(&self, mut f: ReceivedFile) -> ReceivedFile {
+        match db::insert_received(&self.db.lock().unwrap(), &f) {
+            Ok(id) => f.id = id,
+            Err(e) => tracing::warn!("couldn't log received file: {e:#}"),
+        }
+        tracing::info!("received {} ({} bytes) from {} ({})", f.name, f.size, f.from, f.ip);
+        self.emit(&StreamEvent::FileReceived(f.clone()));
+        f
+    }
+
+    /// Log a remote shell session start (id 0) or end, and announce it on the stream.
+    pub fn record_shell(&self, mut s: ShellSession) -> ShellSession {
+        match db::upsert_shell(&self.db.lock().unwrap(), &s) {
+            Ok(id) => s.id = id,
+            Err(e) => tracing::warn!("couldn't log shell session: {e:#}"),
+        }
+        match s.ended {
+            None => tracing::info!("remote shell opened by {} ({})", s.from, s.ip),
+            Some(_) => tracing::info!("remote shell by {} ({}) closed", s.from, s.ip),
+        }
+        self.emit(&StreamEvent::Shell(s.clone()));
+        s
+    }
+
     pub fn self_pid() -> u32 {
         std::process::id()
     }
@@ -174,6 +199,7 @@ impl Collector {
     /// Open the DB, start sampling, log reading and plan polling. Does not start the HTTP server.
     pub async fn start(cfg: CollectorConfig) -> Result<Self> {
         let db_conn = db::open(&cfg.db_path())?;
+        let _ = db::close_stale_shells(&db_conn, now_ms());
         let ingest = db::open(&cfg.db_path())?;
         statusline::write_script(&cfg)?;
 
@@ -310,13 +336,34 @@ impl Collector {
             });
         }
 
-        // Plan usage (status-line capture).
+        // Plan usage: asked from Anthropic every few minutes, plus whatever the status line
+        // captured; the newer reading wins.
         {
             let st = state.clone();
             tokio::spawn(async move {
+                let mut from_api: Option<PlanReading> = None;
+                let mut next_api = std::time::Instant::now();
+                let mut last_error: Option<String> = None;
                 loop {
-                    tokio::time::sleep(LOG_SCAN_EVERY).await;
-                    let latest = statusline::read_plan(&st.cfg);
+                    if std::time::Instant::now() >= next_api {
+                        next_api = std::time::Instant::now() + crate::usage::POLL_EVERY;
+                        let cfg = st.cfg.clone();
+                        match tokio::task::spawn_blocking(move || crate::usage::fetch(&cfg)).await {
+                            Ok(Ok(p)) => {
+                                from_api = Some(p);
+                                last_error = None;
+                            }
+                            Ok(Err(e)) => {
+                                if last_error.as_deref() != Some(e.as_str()) {
+                                    tracing::info!("plan usage from Anthropic unavailable: {e}");
+                                }
+                                last_error = Some(e);
+                            }
+                            Err(_) => {}
+                        }
+                    }
+                    let from_status = statusline::read_plan(&st.cfg);
+                    let latest = [from_api.clone(), from_status].into_iter().flatten().max_by_key(|p| p.captured_at_ms);
                     let changed = {
                         let cur = st.plan.read().unwrap();
                         cur.as_ref().map(|p| p.captured_at_ms) != latest.as_ref().map(|p| p.captured_at_ms)
@@ -327,6 +374,7 @@ impl Collector {
                             st.emit(&StreamEvent::Plan(p));
                         }
                     }
+                    tokio::time::sleep(LOG_SCAN_EVERY).await;
                 }
             });
         }
@@ -358,6 +406,16 @@ pub fn prompts(st: &Shared, limit: usize, before: Option<i64>) -> Result<Vec<Pro
         }
     }
     Ok(out)
+}
+
+pub fn received(st: &Shared, limit: usize) -> Result<Vec<ReceivedFile>> {
+    let conn = st.db.lock().unwrap();
+    db::list_received(&conn, limit.clamp(1, 500))
+}
+
+pub fn shell_sessions(st: &Shared, limit: usize) -> Result<Vec<ShellSession>> {
+    let conn = st.db.lock().unwrap();
+    db::list_shell(&conn, limit.clamp(1, 500))
 }
 
 pub fn kills(st: &Shared, limit: usize) -> Result<Vec<KillLogEntry>> {

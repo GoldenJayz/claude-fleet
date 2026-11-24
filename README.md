@@ -3,18 +3,21 @@
 A small Windows desktop app that shows **Claude Code usage** and **PC performance** for all your machines in one glass dashboard:
 
 - **Prompt feed** per machine: every prompt you send to Claude Code, with model, effort and token counts, plus today/this-week totals and what Claude is **working on right now**.
-- **Plan usage** banner: 5-hour and weekly limits with reset countdowns, and a Windows alert at 80%.
+- **Plan usage** banner: 5-hour and weekly limits from Anthropic, with reset countdowns and a Windows alert at 80%.
 - **Performance** per machine: CPU, RAM, disk space and activity, GPU (NVIDIA, AMD or Intel), network up/down, and temperatures where Windows exposes them.
 - **Heavy processes**: anything using a lot of CPU or RAM for 10 s or more, with a safe **End process / End process tree** flow and a kill log.
+- **File transfer**: drag files onto the window and drop them on another PC.
+- **Remote terminal** (opt-in): a PowerShell on another PC, right in the dashboard.
+- **Android app**: the same dashboard on your phone (see [Phone app](#phone-app-android)).
 
-Everything stays on your machines. There are no cloud services, no telemetry and no Claude API calls. The collector is a plain program that polls on a timer.
+Everything stays on your machines: no cloud services and no telemetry. The only outside calls are asking Anthropic for your plan usage (see [Plan usage](#plan-usage)) and checking GitHub for app updates (see [Updates](#updates)). The collector is a plain program that polls on a timer.
 
 ---
 
 ## How it works
 
 ```
- ┌──────────── JadensPC ────────────┐        ┌──────────── Laptop ─────────────┐
+ ┌──────────── DesktopPC ────────────┐        ┌──────────── Laptop ─────────────┐
  │ Claude Fleet app                 │        │ Claude Fleet app                │
  │  ├─ collector (port 47821) ◄─────┼── LAN ─┼──► dashboard                    │
  │  │   metrics · logs · SQLite     │        │                                 │
@@ -80,11 +83,13 @@ The collector accepts Tailscale's 100.64.0.0/10 range, and the firewall rule inc
 
 ## Plan usage
 
-There's no public API for plan limits. Claude Code passes them to its **status line** command, so Claude Fleet's status line saves them (`%APPDATA%\ClaudeFleet\statusline.json`) and the banner shows them. Things to know:
+The banner shows your 5-hour and weekly limits: the same numbers as Claude Code's `/usage`.
 
-- Only **terminal** Claude Code runs the status line. Desktop-app sessions don't, so readings refresh when a terminal Claude Code session replies on any of your PCs.
-- Usage is per account and shared with claude.ai and the mobile apps, so the banner shows the newest reading from any machine.
-- If a reading is old but its window hasn't reset, it's shown as **"≥ X%"**: usage can only have gone up. If the window has reset since, it says so instead of guessing.
+- Every 5 minutes, each PC asks Anthropic for them, using the sign-in Claude Code already saved on that PC (`~/.claude/.credentials.json`). This is the only call Claude Fleet makes outside your network. It sends nothing but that request: no prompts and no logs.
+- Claude Fleet only reads that sign-in; it never renews or changes it. When it's about to expire, Claude Fleet runs `claude auth status`, which makes Claude Code renew it the normal way.
+- The **status line** is still used as a backup. If you install it (Settings → System), terminal Claude Code sessions also hand over their numbers, and the newest reading wins.
+- Usage is per account and shared with claude.ai, the apps and all your PCs, so the banner shows the newest reading from any machine.
+- If no reading is newer than 10 minutes (for example, every PC is offline), the last one is shown as **"≥ X%"**, since usage can only have gone up. If the window has reset since, it says so instead of guessing.
 - There's deliberately no estimate from token counts. The logs on your PCs can't see claude.ai or phone usage, and testing showed such estimates were wildly off.
 
 ## Ending heavy processes
@@ -99,13 +104,66 @@ There's no public API for plan limits. Claude Code passes them to its **status l
 - Claude Fleet never asks for admin rights. If Windows refuses, it tells you to use Task Manager as administrator.
 - Every attempt is logged (**Processes → Kill log**) with time, machine, process, who asked and from which IP.
 
+## Sending files
+
+Drag files from Explorer anywhere onto the Claude Fleet window. Each of your other PCs appears as a drop target: drop on one to send. You can also use **Send files** on a PC's page.
+
+- Files are saved in that PC's **Downloads\Claude Fleet** folder (change it with `"inbox_dir"` in `%APPDATA%\ClaudeFleet\collector.json`). If a file with that name exists, the new one is saved as `name (2).ext`.
+- The receiving PC shows a Windows notification. The **Transfers** panel (bottom right) shows progress and lets you cancel; on the receiving PC, **Show** opens the file in Explorer.
+- Files are marked as coming from another computer, like a browser download, so Windows asks before running a received program.
+- Nothing is saved until the whole file has arrived, and a transfer that would leave less than 1 GB free on that PC is refused.
+- Folders can't be sent yet: zip them first (right-click → Compress to ZIP file).
+
+## Remote terminal
+
+**Terminal** on another PC's page opens an interactive PowerShell on that PC (PowerShell 7 if installed), so you can run commands, including `claude`, without walking over to it. The session stays open while you look at other pages; it's listed under **Terminals** in the sidebar. **End session** closes the shell and anything still running in it.
+
+It's **off by default**. Turn it on, on the PC you want to reach, in **Settings → System → Allow remote shell**. There's no way to turn it on from another PC.
+
+- The shell runs as the signed-in user, never as admin.
+- The PC being used gets a Windows notification and a banner for as long as a session is open. Every session is logged (`shell_log` in `fleet.db`).
+- At most 4 sessions at once.
+- Anyone with that PC's pairing code on your network can then run any command there as you. Traffic on a local network isn't encrypted, so only turn it on for networks you trust, or use Tailscale.
+
+## Phone app (Android)
+
+The phone app is the dashboard only: it shows your PCs, plan usage, prompts and processes, can end heavy processes, send files and open a remote terminal. It runs no collector, so the phone itself doesn't appear as a machine.
+
+**Add a PC:** on the PC, open **Settings → This PC → Copy code**, get that line to the phone (for example with Phone Link's shared clipboard), then on the phone tap **Settings → Add machine** and paste it. The phone must be on the same Wi-Fi as the PC, or on Tailscale when you're away.
+
+- The PC's firewall rule must allow the collector's port (Settings → System on the PC).
+- Pairing codes are kept in the app's private storage on the phone.
+- On a phone the terminal gets a row of extra keys (Esc, Tab, Ctrl+C, arrows, Paste).
+- Back returns to the overview.
+
+**Build and install** (needs Android Studio's SDK and NDK, and the Rust target `aarch64-linux-android`):
+
+```powershell
+.\scripts\build-android.ps1            # builds target\android\ClaudeFleet-arm64.apk
+.\scripts\build-android.ps1 -Install   # ...and installs it on the phone plugged in over USB
+```
+
+For `-Install`, turn on USB debugging on the phone (Settings → About phone → Software information → tap **Build number** 7 times, then Settings → Developer options → **USB debugging**), plug it in and accept the prompt on the phone.
+
+The release build is signed with a key created on this PC in `%APPDATA%\ClaudeFleet\android-signing` (not in the repo). Keep that folder: Android only installs updates signed with the same key.
+
+## Updates
+
+Every copy of Claude Fleet (Windows and the phone app) checks this repo's GitHub releases a few seconds after it starts and every 6 hours after that. When there's a new version, a banner offers to install it; **Settings → About → Check for updates** checks right away.
+
+- **Windows:** the update is downloaded, its signature is checked, and it installs and restarts (Windows asks for permission, as with the original install).
+- **Phone:** the APK is downloaded and checked against the release's SHA-256, then Android asks you to confirm. The first time, Android asks you to allow "Install unknown apps" for Claude Fleet.
+- Updates are signed with keys that exist only on the PC that builds releases. Windows refuses an update without a valid signature, and Android refuses an APK signed with a different key, so a tampered release can't install.
+- The check sends nothing about you or your PCs: it's a plain download of `latest.json` from GitHub.
+
 ## Privacy and security
 
 - Prompt text stays in `%APPDATA%\ClaudeFleet\fleet.db` on each PC, and is only sent to your own dashboards over your LAN or tailnet.
 - The pairing token (64 hex characters) is created on first run and stored in `%APPDATA%\ClaudeFleet\collector.json`. Anyone with it, on your network, can read that PC's stats and prompts and end its non-protected processes, so treat it like a password.
   - To change it, quit the app, set `"token": ""` in that file, and start the app again. A new one is generated, and you'll need to re-pair.
-- Saved machines (with their tokens) are in `%APPDATA%\ClaudeFleet\dashboard.json`.
-- Traffic is plain HTTP on your local network. Use Tailscale if you need encryption between sites.
+- Saved machines (with their tokens) are in `%APPDATA%\ClaudeFleet\dashboard.json`, or in the phone app's private storage.
+- Traffic is plain HTTP on your local network, including files you send and what you type in a remote terminal. Use Tailscale if you need encryption.
+- The dashboard stops redrawing while it's hidden in the tray, so it uses almost no CPU there; collecting continues.
 
 ## Uninstall
 
@@ -126,6 +184,14 @@ npm run tauri build      # installer: target\release\bundle\msi\
 cargo test -p fleet-collector
 ```
 
+Publish a release (all installed copies then offer it):
+
+```powershell
+.\scripts\release.ps1 -Version 0.2.1 -Notes "What changed"
+```
+
+It bumps the version, builds the signed Windows installer and the Android APK, commits and pushes the version bump, and creates the GitHub release with `latest.json`. It needs a clean working tree, `gh` signed in, and the signing keys in `%APPDATA%\ClaudeFleet\updater-signing` and `android-signing`. **Back up those two folders**: without them, installed copies can't be updated (you'd have to reinstall by hand).
+
 Standalone collector (no UI), handy for testing a second machine on one PC:
 
 ```powershell
@@ -137,7 +203,10 @@ Layout:
 
 | Path | What |
 |---|---|
-| `crates/collector` | Collector library and `fleet-collector` CLI: metrics, GPU counters, log reader, SQLite, API, process control, status line |
-| `src-tauri` | Tauri app: embeds the collector; window effects, tray, autostart, firewall and status-line commands |
+| `crates/collector` | Collector library and `fleet-collector` CLI: metrics, GPU counters, log reader, SQLite, API, process control, status line, file receiving, remote shell |
+| `src-tauri` | Tauri app. Windows (`desktop.rs`): embeds the collector; window effects, tray, autostart, firewall and status-line commands. Android (`mobile.rs`): the dashboard only |
+| `src-tauri/gen/android` | Android project (Gradle) for the phone app |
+| `scripts/build-android.ps1` | Builds (and optionally installs) the phone app |
+| `scripts/release.ps1` | Builds both apps and publishes a GitHub release for the auto-updater |
 | `src` | React + TypeScript + Tailwind + Framer Motion dashboard |
 | `docs/data-sources.md` | Where every number comes from, verified against real logs |

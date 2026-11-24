@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { isTauri } from '../lib/machines';
+import { isDesktopApp } from '../lib/machines';
 
 async function win() {
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -39,7 +39,7 @@ export function TitleBar({ online, total }: { online: number; total: number }) {
           {online}/{total} machine{total === 1 ? '' : 's'} online
         </span>
       </div>
-      {isTauri && (
+      {isDesktopApp && (
         <div className="flex">
           <WinButton label="Minimize" onClick={() => win().then((w) => w.minimize())}>
             <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" /></svg>

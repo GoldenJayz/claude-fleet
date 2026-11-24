@@ -173,5 +173,6 @@ pub fn read_plan(cfg: &CollectorConfig) -> Option<PlanReading> {
         five_hour: window("five_hour"),
         seven_day: window("seven_day"),
         claude_version: v.get("version").and_then(Value::as_str).map(str::to_string),
+        source: "statusLine".into(),
     })
 }

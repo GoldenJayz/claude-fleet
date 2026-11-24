@@ -16,6 +16,9 @@ pub struct MachineInfo {
     pub total_memory: u64,
     pub boot_time_ms: i64,
     pub port: u16,
+    /// Optional API features this collector supports, e.g. "files" (receiving files).
+    #[serde(default)]
+    pub features: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -295,15 +298,22 @@ pub struct LimitWindow {
     pub resets_at_ms: i64,
 }
 
-/// Plan usage captured by the status-line script (per account, so every machine reports the same).
+/// Plan usage (per account, so every machine reports the same).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanReading {
-    /// When Claude Code last handed this data to the status line.
+    /// When this reading was taken.
     pub captured_at_ms: i64,
     pub five_hour: Option<LimitWindow>,
     pub seven_day: Option<LimitWindow>,
     pub claude_version: Option<String>,
+    /// "anthropic" (asked Anthropic directly) or "statusLine" (captured by the status line).
+    #[serde(default = "status_line_source")]
+    pub source: String,
+}
+
+fn status_line_source() -> String {
+    "statusLine".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -340,4 +350,35 @@ pub enum StreamEvent {
     },
     Claude(ClaudeSummary),
     Plan(PlanReading),
+    FileReceived(ReceivedFile),
+    /// A remote shell session started (`ended` empty) or finished.
+    Shell(ShellSession),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellSession {
+    pub id: i64,
+    pub started: i64,
+    pub ended: Option<i64>,
+    /// Connecting dashboard's machine name, as it reported it.
+    pub from: String,
+    pub ip: String,
+    pub shell: String,
+}
+
+/// A file another PC sent to this one.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReceivedFile {
+    pub id: i64,
+    pub ts: i64,
+    /// Name it was saved under (may differ from the sent name if that file already existed).
+    pub name: String,
+    pub sent_name: String,
+    pub size: u64,
+    /// Sending dashboard's machine name, as it reported it.
+    pub from: String,
+    pub ip: String,
+    pub path: String,
 }

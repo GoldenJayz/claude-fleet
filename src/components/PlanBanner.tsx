@@ -39,7 +39,7 @@ function WindowBar({ w, now }: { w: WindowView; now: number }) {
           className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${barColors(used)} ${w.atLeast ? 'opacity-60' : ''}`}
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(100, used)}%` }}
-          transition={{ type: 'spring', stiffness: 50, damping: 16 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
         />
         {/* 80% marker */}
         <div className="absolute inset-y-0 w-px bg-white/25" style={{ left: '80%' }} />
@@ -65,9 +65,9 @@ function WindowBar({ w, now }: { w: WindowView; now: number }) {
 
 export function PlanBanner({ plan, now }: { plan: PlanView; now: number }) {
   return (
-    <motion.section initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="glass shrink-0 rounded-3xl px-6 py-4">
-      <div className="flex items-center gap-8">
-        <div className="w-48 shrink-0">
+    <motion.section initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="glass shrink-0 rounded-3xl px-4 py-3.5 md:px-6 md:py-4">
+      <div className="flex flex-col gap-3.5 md:flex-row md:items-center md:gap-8">
+        <div className="md:w-48 md:shrink-0">
           <div className="font-display text-[15px] font-semibold glow-text">Plan usage</div>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {plan.reading == null ? (
@@ -75,7 +75,7 @@ export function PlanBanner({ plan, now }: { plan: PlanView; now: number }) {
             ) : plan.fresh ? (
               <Chip tone="live">current</Chip>
             ) : (
-              <Chip tone="warn" title="Plan usage only updates when Claude Code in a terminal replies on one of your machines">
+              <Chip tone="warn" title="No PC with Claude Code has reported usage in the last 10 minutes">
                 last reading
               </Chip>
             )}
@@ -83,9 +83,11 @@ export function PlanBanner({ plan, now }: { plan: PlanView; now: number }) {
           </div>
           <div className="mt-1.5 text-[11px] leading-snug text-white/40">
             {plan.reading
-              ? `From ${plan.source ?? 'status line'} · ${ago(plan.reading.capturedAtMs, now)}`
-              : 'Appears after a terminal Claude Code reply'}
-            {plan.reading && !plan.fresh && <div>Refreshes on the next terminal Claude Code reply</div>}
+              ? plan.reading.source === 'anthropic'
+                ? `From Anthropic via ${plan.source ?? 'this PC'} · ${ago(plan.reading.capturedAtMs, now)}`
+                : `From ${plan.source ?? 'a'} status line · ${ago(plan.reading.capturedAtMs, now)}`
+              : 'Appears once a PC signed in to Claude Code is online'}
+            {plan.reading && !plan.fresh && <div>Updates every 5 min while a PC signed in to Claude Code is online</div>}
           </div>
         </div>
         {plan.windows.map((w) => (

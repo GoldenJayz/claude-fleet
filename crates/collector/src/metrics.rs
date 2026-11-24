@@ -72,6 +72,7 @@ impl Sampler {
             total_memory: self.sys.total_memory(),
             boot_time_ms: boot,
             port,
+            features: vec!["files".into()],
         }
     }
 

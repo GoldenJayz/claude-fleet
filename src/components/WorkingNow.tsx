@@ -62,7 +62,7 @@ function Row({ item, now, showMachine, onOpen }: { item: WorkingItem; now: numbe
       </div>
       <div className="mt-1.5 line-clamp-2 select-text text-[14px] leading-snug text-white/95">{p.text}</div>
       <div className="mt-2 flex items-center gap-2 text-[12.5px] text-violet-100/90">
-        <svg width="14" height="14" viewBox="0 0 24 24" className="shrink-0 animate-spin text-violet-300" style={{ animationDuration: '1.6s' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" className="shrink-0 text-violet-300">
           <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
           <path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         </svg>

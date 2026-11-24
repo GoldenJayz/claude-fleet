@@ -6,12 +6,15 @@ pub mod api;
 pub mod claude;
 pub mod config;
 pub mod db;
+pub mod files;
 pub mod gpu;
 pub mod metrics;
 pub mod procs;
+pub mod shell;
 pub mod state;
 pub mod statusline;
 pub mod types;
+pub mod usage;
 
 pub use config::{CollectorConfig, Overrides};
 pub use state::{Collector, SharedState};

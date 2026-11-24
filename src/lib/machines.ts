@@ -4,6 +4,10 @@ import type { MachineConfig, MachineInfo } from '../types';
 declare const __DEV_LOCAL__: { token: string; port: number; name: string } | null;
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+/** A phone or tablet (the Android app, or a phone browser): touch layout, no local collector. */
+export const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad/i.test(navigator.userAgent);
+/** The Windows app, which runs this PC's collector and can change Windows settings. */
+export const isDesktopApp = isTauri && !isMobile;
 export const DEFAULT_PORT = 47821;
 
 export interface LocalCollector {
@@ -27,7 +31,9 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 }
 
 export async function loadLocal(): Promise<LocalCollector | null> {
-  if (isTauri) return invoke<LocalCollector>('local_collector');
+  if (isDesktopApp) return invoke<LocalCollector>('local_collector');
+  // The phone app only views other machines.
+  if (isTauri) return null;
   // Plain browser during `npm run dev`: the dev server injected this machine's collector details.
   if (__DEV_LOCAL__) {
     return { machineName: __DEV_LOCAL__.name, port: __DEV_LOCAL__.port, token: __DEV_LOCAL__.token, embedded: false, error: null, dataDir: '' };
@@ -35,13 +41,14 @@ export async function loadLocal(): Promise<LocalCollector | null> {
   return null;
 }
 
-const DEV_KEY = 'claude-fleet.machines.dev';
+/** The phone app keeps its list in its own private storage; a dev browser uses a separate key. */
+const STORE_KEY = isTauri ? 'claude-fleet.machines' : 'claude-fleet.machines.dev';
 
-/** Saved remote machines: `%APPDATA%\ClaudeFleet\dashboard.json` in the app, localStorage in a dev browser. */
+/** Saved remote machines: `%APPDATA%\ClaudeFleet\dashboard.json` on Windows, page storage elsewhere. */
 async function loadSaved(): Promise<MachineConfig[]> {
-  if (isTauri) return invoke<MachineConfig[]>('get_machines');
+  if (isDesktopApp) return invoke<MachineConfig[]>('get_machines');
   try {
-    return JSON.parse(localStorage.getItem(DEV_KEY) ?? '[]');
+    return JSON.parse(localStorage.getItem(STORE_KEY) ?? '[]');
   } catch {
     return [];
   }
@@ -49,17 +56,17 @@ async function loadSaved(): Promise<MachineConfig[]> {
 
 async function storeSaved(list: MachineConfig[]) {
   const clean = list.map(({ id, name, address, token }) => ({ id, name, address, token }));
-  if (isTauri) await invoke('save_machines', { machines: clean });
-  else localStorage.setItem(DEV_KEY, JSON.stringify(clean));
+  if (isDesktopApp) await invoke('save_machines', { machines: clean });
+  else localStorage.setItem(STORE_KEY, JSON.stringify(clean));
 }
 
 export async function loadAddresses(): Promise<LanAddress[]> {
-  return isTauri ? invoke<LanAddress[]>('local_addresses') : [];
+  return isDesktopApp ? invoke<LanAddress[]>('local_addresses') : [];
 }
 
 // ---------- pairing codes ----------
 
-/** `claude-fleet://192.168.1.20:47821/<token>?name=JadensPC`: everything another PC needs, in one line. */
+/** `claude-fleet://192.168.1.20:47821/<token>?name=DesktopPC`: everything another PC needs, in one line. */
 export function pairingCode(address: string, token: string, name: string) {
   return `claude-fleet://${address}/${token}?name=${encodeURIComponent(name)}`;
 }

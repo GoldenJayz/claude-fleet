@@ -1,4 +1,4 @@
-# Data sources (verified on JadensPC, Claude Code 2.1.318, Nov 2026)
+# Data sources (verified on DesktopPC, Claude Code 2.1.318, Nov 2026)
 
 ## Claude Code logs
 
@@ -52,4 +52,4 @@ Captured live with a temporary `--settings` file. The user's settings were left 
 - CPU, RAM, disks (space + read/write bytes), network, processes: `sysinfo` 0.40.
 - GPU: sysinfo's Windows VRAM number is the *calling process's* usage, so `src/gpu.rs` reads the
   `GPU Engine` / `GPU Adapter Memory` performance counters per adapter LUID (the Task Manager method; works for AMD, Intel and NVIDIA).
-- Temperatures: sysinfo Components (WMI; usually empty without admin rights) plus NVML for NVIDIA GPUs. JadensPC has an AMD GPU and reports no temperatures.
+- Temperatures: sysinfo Components (WMI; usually empty without admin rights) plus NVML for NVIDIA GPUs. DesktopPC has an AMD GPU and reports no temperatures.

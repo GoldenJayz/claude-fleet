@@ -51,12 +51,17 @@ export function SystemSettings({
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [sl, setSl] = useState<boolean | null>(statusLineInstalled);
+  const [shell, setShell] = useState<boolean | null>(null);
+  const [confirmShell, setConfirmShell] = useState(false);
+  const [inbox, setInbox] = useState<string | null>(null);
 
   useEffect(() => setSl(statusLineInstalled), [statusLineInstalled]);
   useEffect(() => {
     if (!system.available) return;
     system.getAutostart().then(setAutostart).catch(() => {});
     system.firewallStatus().then(setFw).catch(() => {});
+    system.getRemoteShell().then(setShell).catch(() => {});
+    system.inboxDir().then(setInbox).catch(() => {});
   }, []);
 
   async function act<T>(key: string, f: () => Promise<T>, done: (r: T) => string) {
@@ -163,6 +168,50 @@ export function SystemSettings({
           </button>
         )}
       </Row>
+
+      <Row
+        label="Received files"
+        hint={<>Files your other PCs send to this one are saved in {inbox ? <span className="text-white/65">{inbox}</span> : 'Downloads\\Claude Fleet'}.</>}
+      >
+        <button className={quiet} disabled={!system.available} onClick={() => system.openInbox().catch((e) => setMsg({ ok: false, text: String(e) }))}>
+          Open folder
+        </button>
+      </Row>
+
+      <Row
+        label="Allow remote shell"
+        hint="Lets your paired PCs open a PowerShell on this PC from their dashboard. It runs as you (no admin), and you get a notification whenever one connects."
+      >
+        <Toggle
+          on={!!shell}
+          disabled={!system.available || shell === null || busy === 'shell'}
+          onChange={(v) =>
+            v
+              ? setConfirmShell(true)
+              : act('shell', () => system.setRemoteShell(false).then((r) => (setShell(r), r)), () => 'Remote shell turned off. Sessions already open stay open until they’re closed.')
+          }
+        />
+      </Row>
+      {confirmShell && (
+        <div className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-[12.5px] text-amber-50 ring-1 ring-amber-300/25">
+          Anyone with this PC’s pairing code, on your network or tailnet, will be able to run any command here as you: read and delete your files, install
+          programs. Traffic between PCs isn’t encrypted on a local network, so only turn this on for networks you trust (or use Tailscale).
+          <div className="mt-2 flex gap-2">
+            <button
+              className={`${btn} bg-amber-500/30 text-amber-50 ring-amber-300/40 hover:bg-amber-500/45`}
+              onClick={() => {
+                setConfirmShell(false);
+                act('shell', () => system.setRemoteShell(true).then((r) => (setShell(r), r)), () => 'Remote shell turned on. Your other PCs can now open a terminal here.');
+              }}
+            >
+              Turn on
+            </button>
+            <button className={quiet} onClick={() => setConfirmShell(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {msg && (
         <div className={`rounded-xl px-3 py-2 text-[12.5px] ${msg.ok ? 'bg-emerald-500/10 text-emerald-100' : 'bg-rose-500/10 text-rose-100'}`}>{msg.text}</div>

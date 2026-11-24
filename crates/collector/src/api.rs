@@ -7,17 +7,22 @@
 
 use crate::state::{self, SharedState};
 use crate::types::StreamEvent;
+use crate::files;
+use crate::types::ReceivedFile;
+use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{ConnectInfo, Path, Query, Request, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, Query, Request, State};
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
+use futures_util::StreamExt;
 use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::json;
 use std::net::{IpAddr, SocketAddr};
 use subtle::ConstantTimeEq;
+use tokio::io::AsyncWriteExt;
 
 pub fn router(st: SharedState) -> Router {
     let v1 = Router::new()
@@ -30,7 +35,13 @@ pub fn router(st: SharedState) -> Router {
         .route("/claude/tokens", get(tokens))
         .route("/processes/{pid}/impact", get(kill_impact))
         .route("/processes/{pid}/kill", post(kill_process))
-        .route("/kills", get(kill_log));
+        .route("/kills", get(kill_log))
+        // Streamed straight to disk, so no size limit on the body.
+        .route("/files", put(receive_file).layer(DefaultBodyLimit::disable()))
+        .route("/files/received", get(received_files))
+        .route("/shell", get(shell))
+        .route("/shell/status", get(shell_status))
+        .route("/shell/sessions", get(shell_sessions));
     Router::new()
         .nest("/v1", v1)
         .layer(middleware::from_fn_with_state(st.clone(), guard))
@@ -218,6 +229,174 @@ struct KillsQ {
 
 async fn kill_log(State(st): State<SharedState>, Query(q): Query<KillsQ>) -> ApiResult<Vec<crate::types::KillLogEntry>> {
     blocking(move || state::kills(&st, q.limit.unwrap_or(50))).await
+}
+
+#[derive(Deserialize)]
+struct FileQ {
+    name: String,
+    /// Sending dashboard's machine name (shown to the receiver).
+    from: Option<String>,
+}
+
+fn fail(code: StatusCode, msg: impl Into<String>) -> Response {
+    (code, Json(json!({ "error": msg.into() }))).into_response()
+}
+
+fn gib(b: u64) -> String {
+    format!("{:.1} GB", b as f64 / 1_073_741_824.0)
+}
+
+/// Receive one file into the inbox. See `files` for the safety rules.
+async fn receive_file(
+    State(st): State<SharedState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Query(q): Query<FileQ>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    let dir = st.cfg.inbox_dir.clone();
+    let sent_name = q.name.chars().take(400).collect::<String>();
+    let name = files::sanitize_name(&sent_name);
+    let from: String = q
+        .from
+        .as_deref()
+        .map(|s| s.chars().filter(|c| !c.is_control()).take(64).collect::<String>())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "another PC".into());
+
+    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
+        return fail(StatusCode::INTERNAL_SERVER_ERROR, format!("couldn't create {}: {e}", dir.display()));
+    }
+    let declared = headers.get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<u64>().ok());
+    let d2 = dir.clone();
+    let free = tokio::task::spawn_blocking(move || files::free_space(&d2)).await.ok().flatten().unwrap_or(u64::MAX);
+    let room = free.saturating_sub(files::FREE_SPACE_MARGIN);
+    if let Some(size) = declared {
+        if size > room {
+            return fail(
+                StatusCode::INSUFFICIENT_STORAGE,
+                format!("not enough disk space on {}: {} needed, {} free", st.cfg.machine_name, gib(size), gib(free)),
+            );
+        }
+    }
+
+    let part = files::part_path(&dir);
+    let mut out = match tokio::fs::File::create(&part).await {
+        Ok(f) => f,
+        Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, format!("couldn't write to {}: {e}", dir.display())),
+    };
+    let mut written = 0u64;
+    let mut stream = body.into_data_stream();
+    let copied: Result<(), Response> = async {
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| fail(StatusCode::BAD_REQUEST, format!("transfer interrupted: {e}")))?;
+            written += chunk.len() as u64;
+            if written > room {
+                return Err(fail(StatusCode::INSUFFICIENT_STORAGE, format!("ran out of disk space on {}", st.cfg.machine_name)));
+            }
+            out.write_all(&chunk)
+                .await
+                .map_err(|e| fail(StatusCode::INTERNAL_SERVER_ERROR, format!("write failed: {e}")))?;
+        }
+        out.flush().await.map_err(|e| fail(StatusCode::INTERNAL_SERVER_ERROR, format!("write failed: {e}")))?;
+        if declared.is_some_and(|d| d != written) {
+            return Err(fail(StatusCode::BAD_REQUEST, "transfer incomplete"));
+        }
+        Ok(())
+    }
+    .await;
+    drop(out);
+    if let Err(resp) = copied {
+        let _ = tokio::fs::remove_file(&part).await;
+        tracing::info!("incoming {name} from {from} ({}) not saved", peer.ip());
+        return resp;
+    }
+
+    // Pick the final name and move the finished file into place (one at a time, so two
+    // simultaneous transfers of the same name don't pick the same target).
+    static FINALIZE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let (d3, n3, p3, from3) = (dir.clone(), name.clone(), part.clone(), from.clone());
+    let placed = tokio::task::spawn_blocking(move || {
+        let _g = FINALIZE.lock().unwrap();
+        let dest = files::unique_path(&d3, &n3);
+        std::fs::rename(&p3, &dest)?;
+        files::mark_of_the_web(&dest, &from3);
+        Ok::<_, std::io::Error>(dest)
+    })
+    .await;
+    let dest = match placed {
+        Ok(Ok(d)) => d,
+        Ok(Err(e)) => {
+            let _ = tokio::fs::remove_file(&part).await;
+            return fail(StatusCode::INTERNAL_SERVER_ERROR, format!("couldn't save the file: {e}"));
+        }
+        Err(e) => {
+            let _ = tokio::fs::remove_file(&part).await;
+            return fail(StatusCode::INTERNAL_SERVER_ERROR, format!("couldn't save the file: {e}"));
+        }
+    };
+
+    let rec = st.record_received(ReceivedFile {
+        id: 0,
+        ts: chrono::Utc::now().timestamp_millis(),
+        name: dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or(name),
+        sent_name,
+        size: written,
+        from,
+        ip: peer.ip().to_string(),
+        path: dest.display().to_string(),
+    });
+    Json(rec).into_response()
+}
+
+async fn received_files(State(st): State<SharedState>, Query(q): Query<KillsQ>) -> ApiResult<Vec<ReceivedFile>> {
+    blocking(move || state::received(&st, q.limit.unwrap_or(50))).await
+}
+
+#[derive(Deserialize)]
+struct ShellQ {
+    cols: Option<u16>,
+    rows: Option<u16>,
+    from: Option<String>,
+}
+
+async fn shell_status(State(st): State<SharedState>) -> impl IntoResponse {
+    Json(json!({
+        "enabled": st.cfg.allow_shell(),
+        "shell": crate::shell::shell_name(),
+        "active": crate::shell::active(),
+        "machine": st.cfg.machine_name,
+    }))
+}
+
+async fn shell(
+    ws: WebSocketUpgrade,
+    State(st): State<SharedState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Query(q): Query<ShellQ>,
+) -> Response {
+    if !st.cfg.allow_shell() {
+        return fail(
+            StatusCode::FORBIDDEN,
+            format!("Remote shell is turned off on {}. Turn it on in that PC's Settings → System.", st.cfg.machine_name),
+        );
+    }
+    let Some(slot) = crate::shell::try_reserve() else {
+        return fail(StatusCode::TOO_MANY_REQUESTS, format!("{} remote shells are already open on {}.", crate::shell::MAX_SESSIONS, st.cfg.machine_name));
+    };
+    let from: String = q
+        .from
+        .as_deref()
+        .map(|s| s.chars().filter(|c| !c.is_control()).take(64).collect::<String>())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "another PC".into());
+    let ip = peer.ip().to_string();
+    let (cols, rows) = (q.cols.unwrap_or(120), q.rows.unwrap_or(30));
+    ws.on_upgrade(move |socket| crate::shell::session(socket, st, slot, from, ip, cols, rows))
+}
+
+async fn shell_sessions(State(st): State<SharedState>, Query(q): Query<KillsQ>) -> ApiResult<Vec<crate::types::ShellSession>> {
+    blocking(move || state::shell_sessions(&st, q.limit.unwrap_or(50))).await
 }
 
 async fn stream(ws: WebSocketUpgrade, State(st): State<SharedState>) -> Response {

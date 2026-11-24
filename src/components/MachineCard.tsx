@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import type { CollectorState } from '../lib/collector';
 import { ago, bytes, duration, rate } from '../lib/format';
+import { isMobile } from '../lib/machines';
 import type { MachineConfig, MetricsSample, Snapshot } from '../types';
 import { Chip } from './Chip';
 import { ProcessList } from './ProcessList';
@@ -37,7 +38,7 @@ function GaugeTile({
   return (
     <div className="glass-tile flex min-w-0 flex-col gap-3 rounded-2xl p-3.5">
       <div className="flex items-center gap-3.5">
-        <RingGauge value={value} palette={palette} label={label} dimmed={dimmed} />
+        <RingGauge value={value} palette={palette} label={label} dimmed={dimmed} size={isMobile ? 88 : undefined} stroke={isMobile ? 8 : undefined} />
         <div className="min-w-0 space-y-1 text-[12px] leading-snug text-white/60 tabular">
           {lines.map((l, i) => (
             <div key={i} className="truncate">
@@ -106,7 +107,7 @@ function Body({
 
   return (
     <div className={`flex flex-col gap-4 transition-opacity ${offline ? 'opacity-55 saturate-50' : ''}`}>
-      <div className="grid grid-cols-2 gap-3 2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
         <GaugeTile
           label="CPU"
           value={m?.cpu ?? null}
@@ -159,7 +160,7 @@ function Body({
         />
       </div>
 
-      <div className="glass-tile grid grid-cols-[auto_1fr_auto] items-center gap-5 rounded-2xl px-4 py-2.5">
+      <div className="glass-tile grid grid-cols-[auto_1fr] items-center gap-x-5 gap-y-2 rounded-2xl px-4 py-2.5 md:grid-cols-[auto_1fr_auto]">
         <div className="flex gap-5 text-[12.5px] tabular">
           <span>
             <span className="text-sky-300">↓</span> <span className="text-white/85">{rate(m?.netRxBps)}</span>
@@ -175,7 +176,7 @@ function Body({
             { values: h.map((p) => p.netTxBps), palette: { from: '#c4b5fd', to: '#a78bfa', glow: 'rgba(167,139,250,0.4)' } },
           ]}
         />
-        <div className="flex flex-wrap justify-end gap-1.5">
+        <div className="col-span-2 flex flex-wrap gap-1.5 md:col-span-1 md:justify-end">
           {m?.disks.length ? <Chip tone="muted">{m.disks.length} drives · {bytes(freeAll, 0)} free</Chip> : null}
           {m?.temps.slice(0, 3).map((t) => (
             <Chip key={t.label} tone="muted">
@@ -188,7 +189,7 @@ function Body({
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
         <Panel
           title="Claude Code"
-          className="h-[clamp(460px,68vh,820px)]"
+          className="h-[clamp(420px,68vh,820px)]"
           right={
             snap.claude.lastActivityTs ? (
               <span className="text-[11px] text-white/40">last reply {ago(snap.claude.lastActivityTs, now)}</span>
@@ -199,7 +200,7 @@ function Body({
         </Panel>
         <Panel
           title="Processes"
-          className="h-[clamp(460px,68vh,820px)]"
+          className="h-[clamp(420px,68vh,820px)]"
           right={snap.heavy.length ? <Chip tone="warn">{snap.heavy.length} heavy</Chip> : <Chip tone="muted">by CPU · RAM</Chip>}
         >
           <ProcessList
@@ -224,16 +225,24 @@ export function MachineCard({
   state,
   now,
   requestedBy,
+  onSendFiles,
+  onOpenTerminal,
 }: {
   machine: MachineConfig;
   state: CollectorState;
   now: number;
   /** Name of the machine this dashboard runs on, recorded in the kill log. */
   requestedBy: string;
+  onSendFiles?: (files: File[]) => void;
+  onOpenTerminal?: () => void;
 }) {
   const snap = state.snapshot;
   const info = snap?.machine;
   const offline = state.status !== 'online';
+  const picker = useRef<HTMLInputElement>(null);
+  const canFiles = !machine.isLocal && !offline && !!info?.features?.includes('files');
+  const action =
+    'flex items-center gap-1.5 rounded-xl bg-white/[0.06] px-3 py-1.5 text-[12.5px] font-medium text-white/85 ring-1 ring-white/10 transition-colors hover:bg-white/[0.12] disabled:opacity-35';
 
   return (
     <motion.article
@@ -241,24 +250,58 @@ export function MachineCard({
       initial={{ opacity: 0, y: 12, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-      className="glass flex min-w-0 shrink-0 flex-col rounded-[28px] p-5"
+      className="glass flex min-w-0 shrink-0 flex-col rounded-[28px] p-3.5 md:p-5"
     >
-      <header className="mb-4 flex items-start justify-between gap-4">
+      <header className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <h2 className="font-display text-2xl font-semibold tracking-tight">{info?.machineName ?? machine.name}</h2>
             <StatusPill state={state} now={now} />
             {machine.isLocal && <Chip tone="muted">this PC</Chip>}
           </div>
-          <div className="mt-1 truncate text-[12.5px] text-white/45">
+          <div className="mt-1 text-[12.5px] text-white/45 md:truncate">
             {info
               ? `${info.os} · ${info.cpuBrand.replace(/\(R\)|\(TM\)|CPU /g, '').replace(/\s+/g, ' ')} · ${bytes(info.totalMemory, 0)} RAM · up ${duration(now - info.bootTimeMs)}`
               : machine.address}
           </div>
         </div>
-        <div className="shrink-0 text-right text-[11px] text-white/35 tabular">
-          {machine.address}
-          {info && <div>collector v{info.collectorVersion}</div>}
+        <div className="flex items-start gap-4 md:shrink-0">
+          {!machine.isLocal && (
+            <div className="flex items-center gap-2">
+              <input
+                ref={picker}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length) onSendFiles?.(files);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                className={action}
+                disabled={!canFiles}
+                title={canFiles ? `Send files to ${info?.machineName ?? machine.name} (or drag them onto the window)` : offline ? 'Offline' : 'Update Claude Fleet on that PC first'}
+                onClick={() => picker.current?.click()}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 16V4M7 9l5-5 5 5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                </svg>
+                Send files
+              </button>
+              <button className={action} disabled={offline} title={`Open a PowerShell on ${info?.machineName ?? machine.name}`} onClick={onOpenTerminal}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 8l4 4-4 4M12 17h7" />
+                </svg>
+                Terminal
+              </button>
+            </div>
+          )}
+          <div className="hidden text-right text-[11px] text-white/35 tabular md:block">
+            {machine.address}
+            {info && <div>collector v{info.collectorVersion}</div>}
+          </div>
         </div>
       </header>
 

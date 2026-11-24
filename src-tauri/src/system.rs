@@ -168,3 +168,54 @@ pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
 pub fn notify(app: AppHandle, title: String, body: String) -> Result<(), String> {
     app.notification().builder().title(title).body(body).show().map_err(|e| e.to_string())
 }
+
+// ---- Remote shell and received files ----------------------------------------------------
+
+fn data_dir() -> std::path::PathBuf {
+    fleet_collector::config::default_data_dir()
+}
+
+fn inbox() -> Result<std::path::PathBuf, String> {
+    CollectorConfig::load_or_create(&Overrides::default()).map(|c| c.inbox_dir).map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
+pub fn get_remote_shell() -> bool {
+    fleet_collector::config::get_allow_shell(&data_dir())
+}
+
+/// Only this PC can allow remote shells on itself; there is deliberately no API for it.
+#[tauri::command]
+pub fn set_remote_shell(enabled: bool) -> Result<bool, String> {
+    fleet_collector::config::set_allow_shell(&data_dir(), enabled).map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
+pub fn inbox_dir() -> Result<String, String> {
+    inbox().map(|p| p.display().to_string())
+}
+
+fn explorer(args: &[&std::ffi::OsStr]) -> Result<(), String> {
+    std::process::Command::new("explorer.exe").args(args).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_inbox() -> Result<(), String> {
+    let dir = inbox()?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    explorer(&[dir.as_os_str()])
+}
+
+/// Show a received file in Explorer. Only paths inside the received-files folder are allowed.
+#[tauri::command]
+pub fn reveal_received(path: String) -> Result<(), String> {
+    let dir = inbox()?.canonicalize().map_err(|e| e.to_string())?;
+    let p = std::path::PathBuf::from(&path).canonicalize().map_err(|_| "That file has been moved or deleted.".to_string())?;
+    if !p.starts_with(&dir) {
+        return Err("Not in the received files folder.".into());
+    }
+    // `explorer /select,` wants a plain path, not the \\?\ form canonicalize returns.
+    let plain = p.display().to_string().trim_start_matches(r"\\?\").to_string();
+    let arg = std::ffi::OsString::from(format!("/select,{plain}"));
+    explorer(&[arg.as_os_str()])
+}
