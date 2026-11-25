@@ -51,7 +51,6 @@ Invoke-Native { npm run tauri build }
 if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
 $msi = Get-Item (Join-Path $root "target\release\bundle\msi\Claude Fleet_${Version}_x64_en-US.msi")
 $sig = Get-Content "$($msi.FullName).sig" -Raw
-Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY, Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
 $out = Join-Path $root "target\release-$Version"
 New-Item -ItemType Directory -Force $out | Out-Null
@@ -67,9 +66,18 @@ if (-not $SkipAndroid) {
     $apkName = "ClaudeFleet_${Version}_arm64.apk"
     Copy-Item (Join-Path $root 'target\android\ClaudeFleet-arm64.apk') (Join-Path $out $apkName) -Force
     $sha = (Get-FileHash (Join-Path $out $apkName) -Algorithm SHA256).Hash.ToLower()
-    $platforms['android-aarch64'] = [ordered]@{ url = "$base/$apkName"; sha256 = $sha }
+    # The Windows updater rejects the whole latest.json if any platform lacks a "signature", so
+    # sign the APK with the updater key too (the phone itself checks sha256 and the APK signature).
+    Remove-Item (Join-Path $out "$apkName.sig") -ErrorAction SilentlyContinue
+    $keyPath = $env:TAURI_SIGNING_PRIVATE_KEY; $keyPass = $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+    Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY, Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD   # they conflict with -f/-p
+    Invoke-Native { npm run tauri -- signer sign -f $keyPath -p $keyPass (Join-Path $out $apkName) }
+    if ($LASTEXITCODE -ne 0) { throw 'Signing the APK failed.' }
+    $apkSig = (Get-Content (Join-Path $out "$apkName.sig") -Raw).Trim()
+    $platforms['android-aarch64'] = [ordered]@{ signature = $apkSig; url = "$base/$apkName"; sha256 = $sha }
     $assets += (Join-Path $out $apkName)
 }
+Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY, Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
 
 $manifest = [ordered]@{
     version   = $Version
