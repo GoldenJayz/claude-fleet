@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
@@ -63,8 +62,8 @@ class FleetWidget : AppWidgetProvider() {
       try {
         val machines = loadMachines(app)
         val results = arrayOfNulls<Pc>(machines.size)
-        val workers = machines.mapIndexed { i, m -> Thread { results[i] = fetch(m) }.apply { start() } }
-        val deadline = System.currentTimeMillis() + 7000
+        val workers = machines.mapIndexed { i, m -> Thread { results[i] = fetchWithRetry(m) }.apply { start() } }
+        val deadline = System.currentTimeMillis() + 8500
         workers.forEach { it.join((deadline - System.currentTimeMillis()).coerceAtLeast(1)) }
         val pcs = machines.mapIndexed { i, m -> results[i] ?: Pc(m.optString("name", "PC"), State.OFFLINE) }
         manager.updateAppWidget(ids, render(app, pcs, machines.isEmpty()))
@@ -76,12 +75,18 @@ class FleetWidget : AppWidgetProvider() {
     }.start()
   }
 
+  /** One retry: the first connection after the phone (or its VPN) wakes up often times out. */
+  private fun fetchWithRetry(m: JSONObject): Pc {
+    val first = fetch(m)
+    return if (first.state == State.OFFLINE) fetch(m) else first
+  }
+
   private fun fetch(m: JSONObject): Pc {
     val name = m.optString("name", "PC")
     return try {
       val conn = URL("http://${m.getString("address")}/v1/snapshot").openConnection() as HttpURLConnection
-      conn.connectTimeout = 3500
-      conn.readTimeout = 5000
+      conn.connectTimeout = 2500
+      conn.readTimeout = 3000
       conn.setRequestProperty("Authorization", "Bearer ${m.getString("token")}")
       try {
         when (conn.responseCode) {
@@ -121,20 +126,17 @@ class FleetWidget : AppWidgetProvider() {
     val v = RemoteViews(ctx.packageName, R.layout.fleet_widget)
     v.setOnClickPendingIntent(R.id.widget_root, openApp(ctx))
     v.setOnClickPendingIntent(R.id.widget_refresh, refreshIntent(ctx))
-    v.setTextViewText(R.id.widget_updated, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date()))
+    val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+    val online = pcs.count { it.state == State.ONLINE }
+    v.setTextViewText(R.id.widget_updated, if (noMachines) time else "$online of ${pcs.size} online · $time")
 
     // Plan usage: the freshest reading any PC has (they share one Claude plan).
     val plan = pcs.mapNotNull { it.plan }.maxByOrNull { it.optLong("capturedAtMs") }
-    val parts = listOfNotNull(
-      plan?.optJSONObject("fiveHour")?.let { "5-hour ${it.optDouble("usedPercentage").roundToInt()}%" },
-      plan?.optJSONObject("sevenDay")?.let { "weekly ${it.optDouble("usedPercentage").roundToInt()}%" },
-    )
-    if (parts.isEmpty()) {
-      v.setViewVisibility(R.id.widget_plan, View.GONE)
-    } else {
-      v.setViewVisibility(R.id.widget_plan, View.VISIBLE)
-      v.setTextViewText(R.id.widget_plan, parts.joinToString(" · ", prefix = "Plan: "))
-    }
+    val fiveHour = plan?.optJSONObject("fiveHour")?.optDouble("usedPercentage")
+    val weekly = plan?.optJSONObject("sevenDay")?.optDouble("usedPercentage")
+    v.setViewVisibility(R.id.widget_plan, if (fiveHour == null && weekly == null) View.GONE else View.VISIBLE)
+    planPill(v, R.id.plan_5h, R.id.plan_5h_text, R.id.plan_5h_bar, fiveHour)
+    planPill(v, R.id.plan_week, R.id.plan_week_text, R.id.plan_week_bar, weekly)
 
     v.removeAllViews(R.id.widget_rows)
     if (noMachines) {
@@ -157,17 +159,17 @@ class FleetWidget : AppWidgetProvider() {
         }
       }
       val dot = when {
-        pc.state == State.REJECTED -> AMBER
-        pc.state == State.OFFLINE -> GREY
-        pc.working > 0 || pc.tasks > 0 -> VIOLET
-        else -> GREEN
+        pc.state == State.REJECTED -> R.drawable.widget_dot_amber
+        pc.state == State.OFFLINE -> R.drawable.widget_dot_grey
+        pc.working > 0 || pc.tasks > 0 -> R.drawable.widget_dot_violet
+        else -> R.drawable.widget_dot_green
       }
-      row.setTextColor(R.id.row_dot, dot)
+      row.setImageViewResource(R.id.row_dot, dot)
       row.setTextViewText(R.id.row_status, status)
       if (pc.state == State.ONLINE && pc.cpu != null) {
         row.setViewVisibility(R.id.row_meters, View.VISIBLE)
-        meter(row, R.id.row_cpu_bar, R.id.row_cpu_text, "CPU", pc.cpu)
-        meter(row, R.id.row_ram_bar, R.id.row_ram_text, "RAM", pc.ram)
+        meter(row, R.id.row_cpu_bar, R.id.row_cpu_text, pc.cpu)
+        meter(row, R.id.row_ram_bar, R.id.row_ram_text, pc.ram)
       } else {
         row.setViewVisibility(R.id.row_meters, View.GONE)
       }
@@ -178,20 +180,27 @@ class FleetWidget : AppWidgetProvider() {
 
   private fun plural(n: Int, word: String) = if (n == 1) "1 $word" else "$n ${word}s"
 
-  private fun meter(row: RemoteViews, bar: Int, text: Int, label: String, value: Double?) {
+  private fun meter(row: RemoteViews, bar: Int, text: Int, value: Double?) {
     val pct = (value ?: 0.0).coerceIn(0.0, 100.0).roundToInt()
     row.setProgressBar(bar, 100, pct, false)
-    row.setTextViewText(text, if (value == null) "$label –" else "$label $pct%")
+    row.setTextViewText(text, if (value == null) "–" else "$pct%")
+  }
+
+  private fun planPill(v: RemoteViews, pill: Int, text: Int, bar: Int, used: Double?) {
+    if (used == null || used.isNaN()) {
+      v.setViewVisibility(pill, View.GONE)
+      return
+    }
+    val pct = used.coerceIn(0.0, 100.0).roundToInt()
+    v.setViewVisibility(pill, View.VISIBLE)
+    v.setTextViewText(text, "$pct%")
+    v.setProgressBar(bar, 100, pct, false)
   }
 
   companion object {
     const val ACTION_REFRESH = "dev.claudefleet.app.WIDGET_REFRESH"
     private const val PREFS = "fleet_widget"
     private const val TAG = "FleetWidget"
-    private val GREEN = Color.rgb(74, 222, 128)
-    private val GREY = Color.rgb(110, 110, 125)
-    private val AMBER = Color.rgb(251, 191, 36)
-    private val VIOLET = Color.rgb(167, 139, 250)
 
     /** Called by the app with its PC list: [{name, address, token}]. */
     fun saveMachines(context: Context, json: String) {
