@@ -33,7 +33,7 @@ export function TitleBar({ online, total }: { online: number; total: number }) {
           <circle cx="12" cy="12" r="8" fill="none" stroke="url(#tb)" strokeWidth="3" strokeDasharray="36 50" strokeLinecap="round" transform="rotate(-90 12 12)" />
         </svg>
         <span data-tauri-drag-region className="font-display text-[13px] font-semibold tracking-wide text-white/85">
-          Claude Fleet
+          Pane
         </span>
         <span data-tauri-drag-region className="text-[12px] text-white/40 tabular">
           {online}/{total} machine{total === 1 ? '' : 's'} online

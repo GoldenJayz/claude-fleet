@@ -65,7 +65,7 @@ function Composer({ machines, states, from }: { machines: MachineConfig[]; state
   if (!capable.length) {
     return (
       <section className="glass rounded-3xl p-5 text-[13px] text-white/55">
-        No PC that can take tasks is online. Machines need Claude Fleet 0.3 or newer, and must be online.
+        No PC that can take tasks is online. Machines need Pane 0.3 or newer, and must be online.
       </section>
     );
   }
@@ -101,7 +101,7 @@ function Composer({ machines, states, from }: { machines: MachineConfig[]; state
       {statusErr && <div className="rounded-xl bg-rose-500/10 px-3 py-2 text-[12.5px] text-rose-100">{statusErr}</div>}
       {off && (
         <div className="rounded-xl bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-100">
-          Agent tasks are turned off on {status?.machine}. On that PC, open Claude Fleet → Settings → System → Agent tasks.
+          Agent tasks are turned off on {status?.machine}. On that PC, open Pane → Settings → System → Agent tasks.
         </div>
       )}
 

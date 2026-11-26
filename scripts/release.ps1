@@ -1,4 +1,4 @@
-# Publishes a new Claude Fleet version: every installed copy (Windows and the phone) offers it.
+# Publishes a new Pane version: every installed copy (Windows and the phone) offers it.
 #   .\scripts\release.ps1 -Version 0.2.1 -Notes "What changed"
 #
 # 1. Sets the version in package.json, Cargo.toml and tauri.conf.json.
@@ -23,7 +23,7 @@ function Invoke-Native([scriptblock]$Command) {
 }
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
-$repo = 'GoldenJayz/claude-fleet'
+$repo = 'GoldenJayz/pane'
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version must look like 1.2.3 (got '$Version')." }
 $conf = Join-Path $root 'src-tauri\tauri.conf.json'
@@ -49,21 +49,23 @@ $env:TAURI_SIGNING_PRIVATE_KEY = Join-Path $keys 'claude-fleet.key'
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = (Get-Content (Join-Path $keys 'password.txt') -Raw).Trim()
 Invoke-Native { npm run tauri build }
 if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
-$msi = Get-Item (Join-Path $root "target\release\bundle\msi\Claude Fleet_${Version}_x64_en-US.msi")
+$msi = Get-Item (Join-Path $root "target\release\bundle\msi\Pane_${Version}_x64_en-US.msi")
 $sig = Get-Content "$($msi.FullName).sig" -Raw
 
 $out = Join-Path $root "target\release-$Version"
 New-Item -ItemType Directory -Force $out | Out-Null
 # GitHub turns spaces in asset names into dots, so use a name without spaces.
-$msiName = "ClaudeFleet_${Version}_x64_en-US.msi"
+$msiName = "Pane_${Version}_x64_en-US.msi"
 Copy-Item $msi.FullName (Join-Path $out $msiName) -Force
 $assets = @((Join-Path $out $msiName))
-$base = "https://github.com/$repo/releases/download/v$Version"
+# Download links use the repo's old name: GitHub redirects it, and phones on 0.3.4 or older only
+# accept update links under that address.
+$base = "https://github.com/GoldenJayz/claude-fleet/releases/download/v$Version"
 $platforms = [ordered]@{ 'windows-x86_64' = [ordered]@{ signature = $sig.Trim(); url = "$base/$msiName" } }
 
 if (-not $SkipAndroid) {
     & (Join-Path $PSScriptRoot 'build-android.ps1')
-    $apkName = "ClaudeFleet_${Version}_arm64.apk"
+    $apkName = "Pane_${Version}_arm64.apk"
     Copy-Item (Join-Path $root 'target\android\ClaudeFleet-arm64.apk') (Join-Path $out $apkName) -Force
     $sha = (Get-FileHash (Join-Path $out $apkName) -Algorithm SHA256).Hash.ToLower()
     # The Windows updater rejects the whole latest.json if any platform lacks a "signature", so
@@ -95,8 +97,8 @@ Invoke-Native { git commit -m "Release v$Version" }
 if ($LASTEXITCODE -ne 0) { throw 'git commit failed.' }
 Invoke-Native { git push }
 if ($LASTEXITCODE -ne 0) { throw 'git push failed; the release was not published.' }
-$notesArg = if ($Notes) { $Notes } else { "Claude Fleet $Version" }
+$notesArg = if ($Notes) { $Notes } else { "Pane $Version" }
 $head = Invoke-Native { git rev-parse HEAD }
-Invoke-Native { gh release create "v$Version" @assets --repo $repo --target $head --title "Claude Fleet $Version" --notes $notesArg }
+Invoke-Native { gh release create "v$Version" @assets --repo $repo --target $head --title "Pane $Version" --notes $notesArg }
 if ($LASTEXITCODE -ne 0) { throw 'Creating the GitHub release failed.' }
 Write-Host "Released v$Version. Installed copies will offer the update within a few hours (or Settings > About > Check for updates)."

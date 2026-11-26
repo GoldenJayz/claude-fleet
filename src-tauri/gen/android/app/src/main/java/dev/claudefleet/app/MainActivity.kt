@@ -63,7 +63,7 @@ class UpdateInstaller(private val activity: Activity) {
     val file = File(path).canonicalFile
     if (file.parentFile != dir || !file.isFile || !file.name.endsWith(".apk")) return "invalid"
     if (Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {
-      // One-time: let the user allow Claude Fleet to install its updates.
+      // One-time: let the user allow Pane to install its updates.
       activity.runOnUiThread {
         activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + activity.packageName)))
       }

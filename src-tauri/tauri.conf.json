@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Claude Fleet",
+  "productName": "Pane",
   "version": "0.3.4",
   "identifier": "dev.claudefleet.app",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Claude Fleet",
+        "title": "Pane",
         "width": 1480,
         "height": 940,
         "minWidth": 980,
@@ -48,7 +48,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU2MTY0QUE1NENCMDdDQkQKUldTOWZMQk1wVW9XNWo1QXNUYkRUaWhCTzM0bW45eVAxeUQwVElxQ0Nwclo1MmJJU2VmTkFxaVIK",
       "endpoints": [
-        "https://github.com/GoldenJayz/claude-fleet/releases/latest/download/latest.json"
+        "https://github.com/GoldenJayz/pane/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

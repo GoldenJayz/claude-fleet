@@ -102,7 +102,7 @@ pub fn install(cfg: &CollectorConfig) -> Result<InstallReport> {
     if let Some(cmd) = &existing_cmd {
         std::fs::write(
             &chain_path,
-            format!("#!/usr/bin/env bash\n# Your previous Claude Code status line, run by Claude Fleet.\n{cmd}\n"),
+            format!("#!/usr/bin/env bash\n# Your previous Claude Code status line, run by Pane.\n{cmd}\n"),
         )?;
     } else {
         let _ = std::fs::remove_file(&chain_path);

@@ -17,7 +17,7 @@ async fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<()
     if n.permission_state().map_err(|e| e.to_string())? != PermissionState::Granted
         && n.request_permission().map_err(|e| e.to_string())? != PermissionState::Granted
     {
-        return Err("Notifications are turned off for Claude Fleet".into());
+        return Err("Notifications are turned off for Pane".into());
     }
     n.builder().title(title).body(body).show().map_err(|e| e.to_string())
 }
@@ -28,8 +28,13 @@ async fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<()
 // APK's SHA-256 is checked against the manifest, and Android itself only installs it over this
 // app if it is signed with the same key (which never leaves the build PC).
 
-const MANIFEST_URL: &str = "https://github.com/GoldenJayz/claude-fleet/releases/latest/download/latest.json";
-const DOWNLOAD_PREFIX: &str = "https://github.com/GoldenJayz/claude-fleet/releases/download/";
+const MANIFEST_URL: &str = "https://github.com/GoldenJayz/pane/releases/latest/download/latest.json";
+/// Release downloads from the project's own repo, under its current name or the old one (GitHub
+/// redirects the old address since the rename to Pane, and older phones only accept that one).
+const DOWNLOAD_PREFIXES: [&str; 2] = [
+    "https://github.com/GoldenJayz/pane/releases/download/",
+    "https://github.com/GoldenJayz/claude-fleet/releases/download/",
+];
 const PLATFORM: &str = "android-aarch64";
 
 #[derive(Deserialize)]
@@ -92,10 +97,10 @@ async fn check_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, Strin
 /// Download and verify the new APK; returns its path for the installer (MainActivity).
 #[tauri::command]
 async fn install_update(app: tauri::AppHandle) -> Result<String, String> {
-    let Some((m, _)) = newer(&app).await? else { return Err("Claude Fleet is already up to date.".into()) };
+    let Some((m, _)) = newer(&app).await? else { return Err("Pane is already up to date.".into()) };
     let p = m.platforms.get(PLATFORM).ok_or("no Android build in this release")?;
-    if !p.url.starts_with(DOWNLOAD_PREFIX) {
-        return Err("the update points somewhere other than Claude Fleet's releases; not installing it".into());
+    if !DOWNLOAD_PREFIXES.iter().any(|prefix| p.url.starts_with(prefix)) {
+        return Err("the update points somewhere other than Pane's releases; not installing it".into());
     }
     let want = p.sha256.clone().ok_or("the update has no checksum; not installing it")?.to_lowercase();
     let dir = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("updates");
@@ -144,5 +149,5 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![notify, check_update, install_update])
         .run(tauri::generate_context!())
-        .expect("error while running Claude Fleet");
+        .expect("error while running Pane");
 }

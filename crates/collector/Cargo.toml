@@ -3,7 +3,7 @@ name = "fleet-collector"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Claude Fleet collector: system metrics, Claude Code usage and a token-protected LAN API"
+description = "Pane collector: system metrics, Claude Code usage and a token-protected LAN API"
 
 [lib]
 name = "fleet_collector"

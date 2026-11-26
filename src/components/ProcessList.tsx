@@ -33,7 +33,7 @@ function HeavyRow({ h, now, onEnd }: { h: HeavyProcess; now: number; onEnd: () =
         </div>
       </div>
       {h.protectedReason ? (
-        <Chip tone="muted" title={`Never ended by Claude Fleet: ${h.protectedReason}`}>
+        <Chip tone="muted" title={`Never ended by Pane: ${h.protectedReason}`}>
           protected
         </Chip>
       ) : (

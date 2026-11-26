@@ -7,7 +7,9 @@ use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_notification::NotificationExt;
 
-pub const FIREWALL_RULE: &str = "Claude Fleet collector";
+pub const FIREWALL_RULE: &str = "Pane collector";
+/// The rule's name before the app was renamed to Pane: still recognized, and replaced by Fix rule.
+pub const LEGACY_FIREWALL_RULE: &str = "Claude Fleet collector";
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -64,7 +66,7 @@ pub struct FirewallStatus {
 pub fn firewall_status() -> Result<FirewallStatus, String> {
     // Reading rules needs no admin rights.
     let out = powershell(&format!(
-        "$r = Get-NetFirewallRule -DisplayName '{FIREWALL_RULE}' -ErrorAction SilentlyContinue | Select-Object -First 1
+        "$r = Get-NetFirewallRule -DisplayName '{FIREWALL_RULE}','{LEGACY_FIREWALL_RULE}' -ErrorAction SilentlyContinue | Select-Object -First 1
          if (-not $r) {{ 'none'; exit }}
          $p = $r | Get-NetFirewallPortFilter; $a = $r | Get-NetFirewallApplicationFilter; $f = $r | Get-NetFirewallAddressFilter
          \"$($r.Enabled)|$($p.LocalPort)|$(@($f.RemoteAddress) -join ',')|$($a.Program)\""
@@ -95,9 +97,10 @@ pub fn firewall_allow(port: u16) -> Result<FirewallStatus, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?.display().to_string();
     let netsh = format!(
         "/c netsh advfirewall firewall delete rule name=\"{FIREWALL_RULE}\" >nul 2>&1 & \
+         netsh advfirewall firewall delete rule name=\"{LEGACY_FIREWALL_RULE}\" >nul 2>&1 & \
          netsh advfirewall firewall add rule name=\"{FIREWALL_RULE}\" dir=in action=allow protocol=TCP \
          localport={port} program=\"{exe}\" profile=private,domain remoteip=localsubnet,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10 \
-         description=\"Lets your other PCs and phones reach Claude Fleet on this one (private networks, VPN and Tailscale only).\""
+         description=\"Lets your other PCs and phones reach Pane on this one (private networks, VPN and Tailscale only).\""
     );
     let args = netsh.replace('\'', "''");
     powershell(&format!(
@@ -110,7 +113,7 @@ pub fn firewall_allow(port: u16) -> Result<FirewallStatus, String> {
 
 #[tauri::command]
 pub fn firewall_remove() -> Result<FirewallStatus, String> {
-    let args = format!("/c netsh advfirewall firewall delete rule name=\"{FIREWALL_RULE}\"").replace('\'', "''");
+    let args = format!("/c netsh advfirewall firewall delete rule name=\"{FIREWALL_RULE}\" & netsh advfirewall firewall delete rule name=\"{LEGACY_FIREWALL_RULE}\"").replace('\'', "''");
     powershell(&format!(
         "try {{ Start-Process -FilePath cmd.exe -ArgumentList '{args}' -Verb RunAs -Wait -WindowStyle Hidden }}
          catch {{ Write-Error 'cancelled'; exit 1 }}"

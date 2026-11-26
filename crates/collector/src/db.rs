@@ -545,7 +545,7 @@ pub fn fail_interrupted_tasks(conn: &Connection, now: i64) -> Result<()> {
         if let Some(mut t) = agent_row(id, d) {
             t.status = "failed".into();
             t.ended = Some(now);
-            t.error = Some("Claude Fleet restarted before this task finished.".into());
+            t.error = Some("Pane restarted before this task finished.".into());
             update_agent_task(conn, &t)?;
         }
     }

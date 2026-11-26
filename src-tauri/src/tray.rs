@@ -30,7 +30,7 @@ pub fn hide_main(app: &AppHandle) {
     if !TOLD_ABOUT_TRAY.swap(true, Ordering::SeqCst) {
         let _ = crate::system::notify(
             app.clone(),
-            "Claude Fleet is still running".into(),
+            "Pane is still running".into(),
             "It keeps collecting in the tray so your other PCs can see this one. Right-click the tray icon to quit.".into(),
         );
     }
@@ -43,7 +43,7 @@ pub fn sync_autostart(app: &AppHandle) {
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "Show Claude Fleet", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "Show Pane", true, None::<&str>)?;
     let autostart = CheckMenuItem::with_id(
         app,
         "autostart",
@@ -52,7 +52,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         app.autolaunch().is_enabled().unwrap_or(false),
         None::<&str>,
     )?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Claude Fleet", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Pane", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[&show, &PredefinedMenuItem::separator(app)?, &autostart, &PredefinedMenuItem::separator(app)?, &quit],
@@ -60,7 +60,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     app.manage(AutostartItem(autostart));
 
     let mut builder = TrayIconBuilder::with_id("main")
-        .tooltip("Claude Fleet")
+        .tooltip("Pane")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {

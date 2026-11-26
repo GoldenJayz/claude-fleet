@@ -114,7 +114,7 @@ export async function testMachine(address: string, token: string): Promise<TestR
   } catch {
     return {
       ok: false,
-      error: `Couldn't reach ${address}. Check that Claude Fleet is running there, the address is right, and Windows Firewall allows port ${address.split(':')[1] ?? DEFAULT_PORT}.`,
+      error: `Couldn't reach ${address}. Check that Pane is running there, the address is right, and Windows Firewall allows port ${address.split(':')[1] ?? DEFAULT_PORT}.`,
     };
   } finally {
     clearTimeout(timer);

@@ -1,7 +1,7 @@
 //! Receiving files from other PCs.
 //!
 //! A dashboard streams the file body to `PUT /v1/files?name=…&from=…`. It is written to a hidden
-//! `.part` file in the inbox (default `Downloads\Claude Fleet`) and renamed into place only once
+//! `.part` file in the inbox (default `Downloads\Pane`) and renamed into place only once
 //! the whole body has arrived, so a cancelled or broken transfer never leaves a half file behind.
 //! Names are cleaned so a sender can't write outside the inbox or overwrite an existing file, and
 //! received files get Windows' "downloaded from the internet" mark, so SmartScreen and Office

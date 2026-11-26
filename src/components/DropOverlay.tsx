@@ -25,13 +25,13 @@ function why(m: MachineConfig, st?: CollectorState): string | null {
   if (m.isLocal) return 'this PC';
   if (st?.status !== 'online') return st?.status === 'unauthorized' ? 'token rejected' : 'offline';
   const features = st.snapshot?.machine.features ?? [];
-  if (!features.includes('files')) return 'update Claude Fleet there first';
+  if (!features.includes('files')) return 'update Pane there first';
   return null;
 }
 
 /**
  * Drag files anywhere over the window: every PC appears as a drop target.
- * Dropping on one sends the files to its "Downloads\Claude Fleet" folder.
+ * Dropping on one sends the files to its "Downloads\Pane" folder.
  */
 export function DropOverlay({
   machines,
@@ -99,7 +99,7 @@ export function DropOverlay({
         >
           <div className="text-center">
             <div className="font-display text-2xl font-semibold">Send to…</div>
-            <div className="mt-1 text-[13px] text-white/55">Drop on a PC. Files go to its Downloads\Claude Fleet folder.</div>
+            <div className="mt-1 text-[13px] text-white/55">Drop on a PC. Files go to its Downloads\Pane folder.</div>
           </div>
           {remotes.length === 0 ? (
             <div className="glass max-w-md rounded-3xl p-6 text-center text-[13px] text-white/65">

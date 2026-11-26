@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Claude Fleet status line.
+# Pane status line.
 # Claude Code pipes its status JSON (including plan rate limits) to this script.
-# We save it next to this script for the Claude Fleet collector, then print a status line.
+# We save it next to this script for the Pane collector, then print a status line.
 # Nothing leaves this machine.
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +15,7 @@ case "$input" in
     ;;
 esac
 
-# If you already had a status line, Claude Fleet runs it unchanged.
+# If you already had a status line, Pane runs it unchanged.
 if [ -s "$DIR/statusline-chain.sh" ]; then
   printf '%s' "$input" | bash "$DIR/statusline-chain.sh"
   exit $?

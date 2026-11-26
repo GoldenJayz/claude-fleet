@@ -284,7 +284,7 @@ export function MachineCard({
               <button
                 className={action}
                 disabled={!canFiles}
-                title={canFiles ? `Send files to ${info?.machineName ?? machine.name} (or drag them onto the window)` : offline ? 'Offline' : 'Update Claude Fleet on that PC first'}
+                title={canFiles ? `Send files to ${info?.machineName ?? machine.name} (or drag them onto the window)` : offline ? 'Offline' : 'Update Pane on that PC first'}
                 onClick={() => picker.current?.click()}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -168,6 +168,7 @@ pub fn run() {
                 }
             }
             tray::create(app.handle())?;
+            migrate_autostart(app.handle());
             let info = start_collector(app.handle()).unwrap_or_else(|e| LocalCollector {
                 machine_name: fleet_collector::config::hostname(),
                 port: fleet_collector::config::DEFAULT_PORT,
@@ -207,5 +208,27 @@ pub fn run() {
             updates::install_update,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Claude Fleet");
+        .expect("error while running Pane");
+}
+
+/// Before the rename to Pane, "Start with Windows" was saved under the name "Claude Fleet" (with
+/// the old install path). Move it over: remove the old entry and re-enable under the new name.
+fn migrate_autostart(app: &tauri::AppHandle) {
+    use std::os::windows::process::CommandExt;
+    use tauri_plugin_autostart::ManagerExt;
+    const RUN: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    const NO_WINDOW: u32 = 0x0800_0000;
+    let reg = |args: &[&str]| {
+        std::process::Command::new("reg").args(args).creation_flags(NO_WINDOW).output().map(|o| o.status.success()).unwrap_or(false)
+    };
+    if !reg(&["query", RUN, "/v", "Claude Fleet"]) {
+        return;
+    }
+    if reg(&["delete", RUN, "/v", "Claude Fleet", "/f"]) {
+        match app.autolaunch().enable() {
+            Ok(()) => tracing::info!("moved Start with Windows from \"Claude Fleet\" to \"Pane\""),
+            Err(e) => tracing::warn!("couldn't re-enable Start with Windows after the rename: {e}"),
+        }
+        tray::sync_autostart(app);
+    }
 }

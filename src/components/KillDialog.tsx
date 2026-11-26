@@ -99,7 +99,7 @@ export function KillDialog({
               <>
                 {impact.protectedReason ? (
                   <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-[13px] text-amber-100 ring-1 ring-amber-300/25">
-                    This process is protected ({impact.protectedReason}) and can't be ended from Claude Fleet.
+                    This process is protected ({impact.protectedReason}) and can't be ended from Pane.
                   </div>
                 ) : (
                   <div className="mt-5 grid grid-cols-2 gap-3">
@@ -138,7 +138,7 @@ export function KillDialog({
                   {result.ok
                     ? `Ended ${result.outcomes.filter((o) => o.ok).length} process${result.outcomes.filter((o) => o.ok).length === 1 ? '' : 'es'}, freeing about ${bytes(freed)}.`
                     : needsAdmin
-                      ? `Windows needs administrator rights to end ${target.name}. Claude Fleet doesn't run as admin, so use Task Manager (run as administrator) for this one.`
+                      ? `Windows needs administrator rights to end ${target.name}. Pane doesn't run as admin, so use Task Manager (run as administrator) for this one.`
                       : `Couldn't end ${target.name}.`}
                 </div>
                 {result.outcomes.filter((o) => !o.ok).map((o) => (

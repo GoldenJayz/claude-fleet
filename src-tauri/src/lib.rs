@@ -1,4 +1,4 @@
-//! Claude Fleet. On Windows it runs this PC's collector plus the dashboard (`desktop`); on a
+//! Pane. On Windows it runs this PC's collector plus the dashboard (`desktop`); on a
 //! phone it is only the dashboard, connecting to the PCs' collectors over the network (`mobile`).
 
 #[cfg(desktop)]

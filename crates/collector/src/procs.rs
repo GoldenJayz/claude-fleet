@@ -1,7 +1,7 @@
 //! Heavy-process detection, the protected list, and ending processes safely.
 //!
 //! - Heavy = high CPU or RAM in *every* sample of the last ~10 s, never a single spike.
-//! - Protected processes are never ended: core Windows processes, Claude, and Claude Fleet
+//! - Protected processes are never ended: core Windows processes, Claude, and Pane
 //!   itself (with its own child processes, e.g. its WebView2 window).
 //! - Ending uses a plain `TerminateProcess` with this user's rights. We never ask for admin;
 //!   if Windows refuses, the caller is told that admin rights would be needed.
@@ -66,9 +66,9 @@ pub fn protection(p: &ProcessInfo, by_pid: &HashMap<u32, &ProcessInfo>, self_pid
         return Some("Claude");
     }
     if p.pid == self_pid || PROTECTED_SELF.contains(&n.as_str()) {
-        return Some("Claude Fleet itself");
+        return Some("Pane itself");
     }
-    // Children of Claude Fleet (its WebView2 window) keep the dashboard alive.
+    // Children of Pane (its WebView2 window) keep the dashboard alive.
     let mut seen = HashSet::new();
     let mut cur = p.parent_pid;
     while let Some(pp) = cur {
@@ -76,7 +76,7 @@ pub fn protection(p: &ProcessInfo, by_pid: &HashMap<u32, &ProcessInfo>, self_pid
             break;
         }
         if pp == self_pid {
-            return Some("part of Claude Fleet");
+            return Some("part of Pane");
         }
         cur = by_pid.get(&pp).and_then(|x| x.parent_pid);
     }
@@ -279,7 +279,7 @@ impl std::fmt::Display for TerminateError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TerminateError::AccessDenied => {
-                write!(f, "Windows needs administrator rights to end this process; Claude Fleet doesn't run as admin.")
+                write!(f, "Windows needs administrator rights to end this process; Pane doesn't run as admin.")
             }
             TerminateError::Gone => write!(f, "It had already exited."),
             TerminateError::Other(e) => write!(f, "{e}"),
@@ -368,7 +368,7 @@ mod tests {
     fn protected_names_and_self_children() {
         let all = vec![p(500, None, "claude-fleet.exe", 1.0, 1), p(501, Some(500), "msedgewebview2.exe", 1.0, 1), p(600, None, "CSRSS.EXE", 1.0, 1), p(700, None, "Claude.exe", 1.0, 1), p(800, None, "game.exe", 1.0, 1)];
         let by: HashMap<u32, &ProcessInfo> = all.iter().map(|x| (x.pid, x)).collect();
-        assert_eq!(protection(&all[1], &by, 500), Some("part of Claude Fleet"));
+        assert_eq!(protection(&all[1], &by, 500), Some("part of Pane"));
         assert_eq!(protection(&all[2], &by, 500), Some("Windows system process"));
         assert_eq!(protection(&all[3], &by, 500), Some("Claude"));
         assert_eq!(protection(&all[4], &by, 500), None);

@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use fleet_collector::{claude, config, db, statusline, CollectorConfig, Overrides};
 use std::path::PathBuf;
 
-/// Claude Fleet collector: system metrics + Claude Code usage, served on the LAN.
+/// Pane collector: system metrics + Claude Code usage, served on the LAN.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
@@ -20,7 +20,7 @@ struct Cli {
     /// Machine name shown on the dashboard (saved for next time).
     #[arg(long, global = true)]
     name: Option<String>,
-    /// Folder for files received from other PCs (default: Downloads\Claude Fleet).
+    /// Folder for files received from other PCs (default: Downloads\Pane).
     #[arg(long, global = true)]
     inbox: Option<PathBuf>,
 }
@@ -33,9 +33,9 @@ enum Cmd {
     Token,
     /// Read the Claude logs once and print a summary.
     Scan,
-    /// Merge the Claude Fleet status line into Claude Code's settings.json (backs it up first).
+    /// Merge the Pane status line into Claude Code's settings.json (backs it up first).
     InstallStatusline,
-    /// Remove the Claude Fleet status line (restores the previous one, if any).
+    /// Remove the Pane status line (restores the previous one, if any).
     UninstallStatusline,
 }
 
@@ -103,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Cmd::UninstallStatusline => match statusline::uninstall(&cfg)? {
             Some(b) => println!("Removed. Backup: {}", b.display()),
-            None => println!("Claude Fleet status line was not installed."),
+            None => println!("Pane status line was not installed."),
         },
     }
     let _ = config::API_VERSION;

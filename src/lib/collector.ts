@@ -69,7 +69,7 @@ export function killLog(m: MachineConfig, limit = 30) {
 
 export async function shellStatus(m: MachineConfig): Promise<ShellStatus> {
   const r = await fetch(`${httpBase(m)}/shell/status`, { headers: { Authorization: `Bearer ${m.token}` } });
-  if (r.status === 404) throw new Error('That PC runs an older Claude Fleet without remote shell. Update it first.');
+  if (r.status === 404) throw new Error('That PC runs an older Pane without remote shell. Update it first.');
   if (!r.ok) throw new Error(await errorText(r));
   return r.json();
 }
@@ -99,7 +99,7 @@ export function uploadFile(m: MachineConfig, file: File, from: string, onProgres
         /* not JSON */
       }
       if (xhr.status === 200) resolve(body as ReceivedFile);
-      else if (xhr.status === 404) reject(new Error('That PC runs an older Claude Fleet that can’t receive files. Update it first.'));
+      else if (xhr.status === 404) reject(new Error('That PC runs an older Pane that can’t receive files. Update it first.'));
       else reject(new Error(body.error ?? `HTTP ${xhr.status}`));
     };
     xhr.onerror = () => reject(new Error(`Couldn’t reach ${m.name}. The connection dropped.`));

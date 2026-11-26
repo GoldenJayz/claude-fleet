@@ -92,7 +92,7 @@ export function SystemSettings({
         <Toggle
           on={!!autostart}
           disabled={!system.available || autostart === null || busy === 'autostart'}
-          onChange={(v) => act('autostart', () => system.setAutostart(v).then((r) => (setAutostart(r), r)), (r) => (r ? 'Claude Fleet will start with Windows.' : 'Claude Fleet won’t start with Windows.'))}
+          onChange={(v) => act('autostart', () => system.setAutostart(v).then((r) => (setAutostart(r), r)), (r) => (r ? 'Pane will start with Windows.' : 'Pane won’t start with Windows.'))}
         />
       </Row>
 
@@ -181,7 +181,7 @@ export function SystemSettings({
 
       <Row
         label="Received files"
-        hint={<>Files your other PCs send to this one are saved in {inbox ? <span className="text-white/65">{inbox}</span> : 'Downloads\\Claude Fleet'}.</>}
+        hint={<>Files your other PCs send to this one are saved in {inbox ? <span className="text-white/65">{inbox}</span> : 'Downloads\\Pane'}.</>}
       >
         <button className={quiet} disabled={!system.available} onClick={() => system.openInbox().catch((e) => setMsg({ ok: false, text: String(e) }))}>
           Open folder

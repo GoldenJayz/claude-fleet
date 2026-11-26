@@ -1,4 +1,4 @@
-# Builds the Claude Fleet phone app for arm64 Android phones (e.g. Galaxy S23).
+# Builds the Pane phone app for arm64 Android phones (e.g. Galaxy S23).
 #   .\scripts\build-android.ps1            -> target\android\ClaudeFleet-arm64.apk
 #   .\scripts\build-android.ps1 -Install   -> also installs it on the phone connected over USB (adb)
 param([switch]$Install)

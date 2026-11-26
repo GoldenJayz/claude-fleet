@@ -34,7 +34,7 @@
                 android:maxLines="1"
                 android:shadowColor="#66000000"
                 android:shadowRadius="6"
-                android:text="Claude Fleet"
+                android:text="Pane"
                 android:textColor="#FFFFFFFF"
                 android:textSize="15sp"
                 android:textStyle="bold" />
@@ -177,7 +177,7 @@
         android:layout_marginTop="10dp"
         android:background="@drawable/widget_glass_card"
         android:padding="12dp"
-        android:text="Open Claude Fleet and add a PC to see it here."
+        android:text="Open Pane and add a PC to see it here."
         android:textColor="#CCFFFFFF"
         android:textSize="12sp"
         android:visibility="gone" />

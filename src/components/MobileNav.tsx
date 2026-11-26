@@ -17,7 +17,7 @@ export function MobileHeader({ online, total }: { online: number; total: number 
         </defs>
         <circle cx="12" cy="12" r="8" fill="none" stroke="url(#mh)" strokeWidth="3" strokeDasharray="36 50" strokeLinecap="round" transform="rotate(-90 12 12)" />
       </svg>
-      <span className="font-display text-[16px] font-semibold tracking-wide text-white/90">Claude Fleet</span>
+      <span className="font-display text-[16px] font-semibold tracking-wide text-white/90">Pane</span>
       <span className="ml-auto text-[12px] text-white/45 tabular">
         {online}/{total} online
       </span>

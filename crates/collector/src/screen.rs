@@ -2,7 +2,7 @@
 //!
 //! Captured directly with the OS screen-capture API (the `xcap` crate), every monitor side by
 //! side, encoded as JPEG. Only works while the collector runs in the signed-in user's session,
-//! which is the case for the Claude Fleet app.
+//! which is the case for the Pane app.
 
 use std::sync::Mutex;
 use image::{codecs::jpeg::JpegEncoder, imageops, DynamicImage, RgbaImage};

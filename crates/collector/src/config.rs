@@ -13,7 +13,7 @@ pub struct CollectorFile {
     pub machine_name: String,
     pub port: u16,
     pub token: String,
-    /// Where files sent from other PCs are saved. Empty = `Downloads\Claude Fleet`.
+    /// Where files sent from other PCs are saved. Empty = `Downloads\Pane`.
     #[serde(default)]
     pub inbox_dir: String,
     /// Let paired PCs open a PowerShell here. Off unless turned on from this PC.
@@ -72,13 +72,13 @@ pub fn default_claude_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(".claude"))
 }
 
-/// `%USERPROFILE%\Downloads\Claude Fleet`.
+/// `%USERPROFILE%\Downloads\Pane`.
 pub fn default_inbox_dir() -> PathBuf {
     directories::UserDirs::new()
         .and_then(|u| u.download_dir().map(|d| d.to_path_buf()))
         .or_else(|| directories::BaseDirs::new().map(|b| b.home_dir().join("Downloads")))
         .unwrap_or_else(|| PathBuf::from("Downloads"))
-        .join("Claude Fleet")
+        .join("Pane")
 }
 
 pub fn hostname() -> String {

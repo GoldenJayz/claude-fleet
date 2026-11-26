@@ -1,4 +1,6 @@
-# Claude Fleet
+# Pane
+
+*Formerly Claude Fleet. Some internal names keep the old one so existing installs update in place and stay paired: the settings folder `%APPDATA%\ClaudeFleet`, `claude-fleet://` pairing codes and the program name `claude-fleet.exe`.*
 
 A small Windows desktop app that shows **Claude Code usage** and **PC performance** for all your machines in one glass dashboard:
 
@@ -20,7 +22,7 @@ Everything stays on your machines: no cloud services and no telemetry. The only 
 
 ```
  ┌──────────── DesktopPC ────────────┐        ┌──────────── Laptop ─────────────┐
- │ Claude Fleet app                 │        │ Claude Fleet app                │
+ │ Pane app                 │        │ Pane app                │
  │  ├─ collector (port 47821) ◄─────┼── LAN ─┼──► dashboard                    │
  │  │   metrics · logs · SQLite     │        │                                 │
  │  └─ dashboard ───────────────────┼── LAN ─┼─► collector (port 47821)        │
@@ -43,8 +45,8 @@ Closing the window **hides it to the tray**, so the other PCs can keep seeing th
 
 ## Install
 
-1. Copy `Claude Fleet_0.1.0_x64_en-US.msi` to the PC and run it.
-2. Open **Claude Fleet** from the Start menu.
+1. Copy `Pane_0.1.0_x64_en-US.msi` to the PC and run it.
+2. Open **Pane** from the Start menu.
 3. In **Settings → System**:
    - **Start with Windows**: on, so the collector is always available.
    - **Allow other PCs to connect**: click **Allow** and approve the Windows prompt. This adds a firewall rule for port 47821 that covers this app only, your local subnet and Tailscale (100.64.0.0/10) only, on Private and Domain networks only.
@@ -69,7 +71,7 @@ If **Test connection** fails:
 
 | Message | Fix |
 |---|---|
-| *Couldn't reach …* | Is Claude Fleet running on that PC (check the tray)? Did you click **Allow** there? Is that network set to **Private** in Windows (Settings → Network)? Public networks are blocked on purpose. |
+| *Couldn't reach …* | Is Pane running on that PC (check the tray)? Did you click **Allow** there? Is that network set to **Private** in Windows (Settings → Network)? Public networks are blocked on purpose. |
 | *the pairing token is wrong* | Copy the code again from that PC's Settings. |
 | *refused this address* | The address isn't a LAN or Tailscale address. Use one from the pairing-code list. |
 
@@ -87,8 +89,8 @@ The collector accepts Tailscale's 100.64.0.0/10 range, and the firewall rule inc
 
 The banner shows your 5-hour and weekly limits: the same numbers as Claude Code's `/usage`.
 
-- Every 5 minutes, each PC asks Anthropic for them, using the sign-in Claude Code already saved on that PC (`~/.claude/.credentials.json`). This is the only call Claude Fleet makes outside your network. It sends nothing but that request: no prompts and no logs.
-- Claude Fleet only reads that sign-in; it never renews or changes it. When it's about to expire, Claude Fleet runs `claude auth status`, which makes Claude Code renew it the normal way.
+- Every 5 minutes, each PC asks Anthropic for them, using the sign-in Claude Code already saved on that PC (`~/.claude/.credentials.json`). This is the only call Pane makes outside your network. It sends nothing but that request: no prompts and no logs.
+- Pane only reads that sign-in; it never renews or changes it. When it's about to expire, Pane runs `claude auth status`, which makes Claude Code renew it the normal way.
 - The **status line** is still used as a backup. If you install it (Settings → System), terminal Claude Code sessions also hand over their numbers, and the newest reading wins.
 - Usage is per account and shared with claude.ai, the apps and all your PCs, so the banner shows the newest reading from any machine.
 - If no reading is newer than 10 minutes (for example, every PC is offline), the last one is shown as **"≥ X%"**, since usage can only have gone up. If the window has reset since, it says so instead of guessing.
@@ -100,17 +102,17 @@ The banner shows your 5-hour and weekly limits: the same numbers as Claude Code'
 - **Never ended (protected):**
   - Windows core processes: System, Registry, smss, csrss, wininit, winlogon, services, lsass, lsaiso, dwm, explorer, svchost, fontdrvhost, sihost
   - Claude
-  - Claude Fleet itself, including its own window processes
+  - Pane itself, including its own window processes
 - The confirm dialog shows what ending the process (or its whole tree) would free. **End process tree** ends the children first and leaves protected branches running.
 - Every request includes the process start time, so a recycled PID can't hit a different program.
-- Claude Fleet never asks for admin rights. If Windows refuses, it tells you to use Task Manager as administrator.
+- Pane never asks for admin rights. If Windows refuses, it tells you to use Task Manager as administrator.
 - Every attempt is logged (**Processes → Kill log**) with time, machine, process, who asked and from which IP.
 
 ## Sending files
 
-Drag files from Explorer anywhere onto the Claude Fleet window. Each of your other PCs appears as a drop target: drop on one to send. You can also use **Send files** on a PC's page.
+Drag files from Explorer anywhere onto the Pane window. Each of your other PCs appears as a drop target: drop on one to send. You can also use **Send files** on a PC's page.
 
-- Files are saved in that PC's **Downloads\Claude Fleet** folder (change it with `"inbox_dir"` in `%APPDATA%\ClaudeFleet\collector.json`). If a file with that name exists, the new one is saved as `name (2).ext`.
+- Files are saved in that PC's **Downloads\Pane** folder (change it with `"inbox_dir"` in `%APPDATA%\ClaudeFleet\collector.json`). If a file with that name exists, the new one is saved as `name (2).ext`.
 - The receiving PC shows a Windows notification. The **Transfers** panel (bottom right) shows progress and lets you cancel; on the receiving PC, **Show** opens the file in Explorer.
 - Files are marked as coming from another computer, like a browser download, so Windows asks before running a received program.
 - Nothing is saved until the whole file has arrived, and a transfer that would leave less than 1 GB free on that PC is refused.
@@ -152,7 +154,7 @@ The phone app is the dashboard only: it shows your PCs, plan usage, prompts and 
 - On a phone the terminal gets a row of extra keys (Esc, Tab, Ctrl+C, arrows, Paste).
 - Back returns to the overview.
 
-**Home screen widget:** long-press the home screen → **Widgets** → **Claude Fleet**. It lists your PCs with online status, CPU and RAM, whether Claude is working (or agent tasks are queued), and the plan usage. Tap it to open the app; the ↻ button refreshes. It refreshes by itself every 30 minutes and whenever you change the PC list in the app, asking the PCs directly over the same network as the app (open the app once after installing so the widget gets your PC list). It can be resized, including on a foldable's cover screen.
+**Home screen widget:** long-press the home screen → **Widgets** → **Pane**. It lists your PCs with online status, CPU and RAM, whether Claude is working (or agent tasks are queued), and the plan usage. Tap it to open the app; the ↻ button refreshes. It refreshes by itself every 30 minutes and whenever you change the PC list in the app, asking the PCs directly over the same network as the app (open the app once after installing so the widget gets your PC list). It can be resized, including on a foldable's cover screen.
 
 **Build and install** (needs Android Studio's SDK and NDK, and the Rust target `aarch64-linux-android`):
 
@@ -167,10 +169,10 @@ The release build is signed with a key created on this PC in `%APPDATA%\ClaudeFl
 
 ## Updates
 
-Every copy of Claude Fleet (Windows and the phone app) checks this repo's GitHub releases a few seconds after it starts and every 6 hours after that. When there's a new version, a banner offers to install it; **Settings → About → Check for updates** checks right away.
+Every copy of Pane (Windows and the phone app) checks this repo's GitHub releases a few seconds after it starts and every 6 hours after that. When there's a new version, a banner offers to install it; **Settings → About → Check for updates** checks right away.
 
 - **Windows:** the update is downloaded, its signature is checked, and it installs and restarts (Windows asks for permission, as with the original install).
-- **Phone:** the APK is downloaded and checked against the release's SHA-256, then Android asks you to confirm. The first time, Android asks you to allow "Install unknown apps" for Claude Fleet.
+- **Phone:** the APK is downloaded and checked against the release's SHA-256, then Android asks you to confirm. The first time, Android asks you to allow "Install unknown apps" for Pane.
 - Updates are signed with keys that exist only on the PC that builds releases. Windows refuses an update without a valid signature, and Android refuses an APK signed with a different key, so a tampered release can't install.
 - The check sends nothing about you or your PCs: it's a plain download of `latest.json` from GitHub.
 
@@ -186,7 +188,7 @@ Every copy of Claude Fleet (Windows and the phone app) checks this repo's GitHub
 ## Uninstall
 
 1. In **Settings → System**, click **Remove** next to the status line and next to the firewall rule.
-2. Uninstall *Claude Fleet* from Windows Settings → Apps.
+2. Uninstall *Pane* from Windows Settings → Apps.
 3. Optionally delete `%APPDATA%\ClaudeFleet`.
 
 ---

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">"Claude Fleet"</string>
-    <string name="main_activity_title">"Claude Fleet"</string>
+    <string name="app_name">"Pane"</string>
+    <string name="main_activity_title">"Pane"</string>
     <string name="widget_description">Your PCs at a glance: online, CPU, RAM, Claude activity and plan usage.</string>
 </resources>

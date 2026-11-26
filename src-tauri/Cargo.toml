@@ -3,7 +3,7 @@ name = "claude-fleet"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Claude Fleet: Claude usage and PC performance across your machines"
+description = "Pane: Claude usage and PC performance across your machines"
 
 [lib]
 name = "claude_fleet_lib"

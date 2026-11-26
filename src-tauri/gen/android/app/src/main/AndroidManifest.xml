@@ -29,7 +29,7 @@
         <!-- Home screen widget: the PCs at a glance. -->
         <receiver
           android:name=".FleetWidget"
-          android:label="Claude Fleet"
+          android:label="Pane"
           android:exported="false">
           <intent-filter>
             <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

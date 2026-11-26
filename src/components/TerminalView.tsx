@@ -143,7 +143,7 @@ export function TerminalView({
       try {
         const st = await shellStatus(machine);
         if (!st.enabled) {
-          if (!cancelled) setPhase({ kind: 'disabled', message: `Remote shell is turned off on ${st.machine}. On that PC, open Claude Fleet → Settings → System and turn on “Allow remote shell”.` });
+          if (!cancelled) setPhase({ kind: 'disabled', message: `Remote shell is turned off on ${st.machine}. On that PC, open Pane → Settings → System and turn on “Allow remote shell”.` });
           return;
         }
         shell = st.shell;

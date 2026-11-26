@@ -95,7 +95,7 @@ function AboutSection({ updates }: { updates: Updates }) {
               : 'Checks automatically every few hours.';
   return (
     <Section title="About">
-      <Row label={`Claude Fleet ${version ?? ''}`} hint={status}>
+      <Row label={`Pane ${version ?? ''}`} hint={status}>
         {p.kind === 'available' ? (
           <button onClick={updates.install} className="rounded-lg bg-violet-500/35 px-2.5 py-1 text-[12px] text-violet-50 ring-1 ring-violet-300/40 hover:bg-violet-500/50">
             Update now
@@ -146,7 +146,7 @@ export function SettingsView({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {isMobile && (
-        <Section title="Machines" desc="Your PCs running Claude Fleet. On each PC, open Settings → This PC → Copy code, get the code to this phone, and paste it here.">
+        <Section title="Machines" desc="Your PCs running Pane. On each PC, open Settings → This PC → Copy code, get the code to this phone, and paste it here.">
           <MachinesSettings saved={saved} states={states} onChange={onMachinesChange} />
         </Section>
       )}
@@ -240,7 +240,7 @@ export function SettingsView({
         <SystemSettings local={local} statusLineInstalled={snap ? snap.statusLine.installed : null} settings={settings} update={update} />
       </Section>
 
-      <Section title="Machines" desc="Other PCs running Claude Fleet. Each gets its own card and sidebar entry.">
+      <Section title="Machines" desc="Other PCs running Pane. Each gets its own card and sidebar entry.">
         <MachinesSettings saved={saved} states={states} onChange={onMachinesChange} />
       </Section>
       </>)}

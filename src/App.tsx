@@ -115,7 +115,7 @@ export default function App() {
         system
           .notify(
             `Received ${ev.name}`,
-            `From ${ev.from} · ${bytes(ev.size)} · saved in Downloads\\Claude Fleet`,
+            `From ${ev.from} · ${bytes(ev.size)} · saved in Downloads\\Pane`,
           )
           .catch(() => {});
       } else if (ev.type === "screenViewed") {
@@ -277,7 +277,7 @@ export default function App() {
                 `The local collector could not start: ${local.error}`
               ) : isMobile ? (
                 <>
-                  No PCs yet. On a PC, open Claude Fleet, go to Settings, This PC, <b>Copy code</b>, get the code to this phone, then add it here.
+                  No PCs yet. On a PC, open Pane, go to Settings, This PC, <b>Copy code</b>, get the code to this phone, then add it here.
                   <button
                     className="mt-4 block w-full rounded-xl bg-violet-500/35 px-3 py-2.5 text-[13px] font-medium text-violet-50 ring-1 ring-violet-300/40"
                     onClick={() => setView({ kind: "settings" })}

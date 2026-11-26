@@ -4,7 +4,7 @@ import type { Updates } from '../lib/updates';
 
 const btn = 'shrink-0 rounded-lg px-3 py-1.5 text-[12px] font-medium ring-1 transition-colors';
 
-/** "Claude Fleet x.y.z is available" with Install, progress, and what happens next. */
+/** "Pane x.y.z is available" with Install, progress, and what happens next. */
 export function UpdateBanner({ updates }: { updates: Updates }) {
   const { phase, install, dismiss, showBanner } = updates;
   if (!showBanner || !('info' in phase) || !phase.info) return null;
@@ -14,17 +14,17 @@ export function UpdateBanner({ updates }: { updates: Updates }) {
   let action: { label: string; run: () => void } | null = null;
   switch (phase.kind) {
     case 'available':
-      text = `Claude Fleet ${info.version} is available (you have ${info.current}).`;
+      text = `Pane ${info.version} is available (you have ${info.current}).`;
       action = { label: isMobile ? 'Update' : 'Install & restart', run: install };
       break;
     case 'downloading':
       text = `Downloading ${info.version}… ${bytes(phase.got)}${phase.total ? ` of ${bytes(phase.total)}` : ''}`;
       break;
     case 'installing':
-      text = isMobile ? 'Confirm the update in the Android prompt.' : 'Installing… Claude Fleet will restart (Windows may ask for permission).';
+      text = isMobile ? 'Confirm the update in the Android prompt.' : 'Installing… Pane will restart (Windows may ask for permission).';
       break;
     case 'needsPermission':
-      text = 'Allow “Install unknown apps” for Claude Fleet in the screen that opened, then come back and tap Install.';
+      text = 'Allow “Install unknown apps” for Pane in the screen that opened, then come back and tap Install.';
       action = { label: 'Install', run: install };
       break;
     case 'error':

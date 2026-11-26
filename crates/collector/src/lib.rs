@@ -1,4 +1,4 @@
-//! Claude Fleet collector: a plain background program (no AI, no cloud calls) that samples
+//! Pane collector: a plain background program (no AI, no cloud calls) that samples
 //! system metrics, reads Claude Code's local logs, keeps history in SQLite and serves a
 //! token-protected API on the LAN. Used standalone (`fleet-collector`) or embedded in the app.
 

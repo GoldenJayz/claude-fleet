@@ -33,7 +33,7 @@ pub async fn check_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
 /// Download, verify the signature, install (Windows asks for permission) and restart.
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
-    let Some(update) = find(&app).await? else { return Err("Claude Fleet is already up to date.".into()) };
+    let Some(update) = find(&app).await? else { return Err("Pane is already up to date.".into()) };
     let progress = app.clone();
     let mut got = 0u64;
     update
@@ -63,8 +63,8 @@ pub fn spawn_checks(app: AppHandle) {
                     if told.as_deref() != Some(i.version.as_str()) {
                         let _ = crate::system::notify(
                             app.clone(),
-                            format!("Claude Fleet {} is available", i.version),
-                            "Open Claude Fleet to install it.".into(),
+                            format!("Pane {} is available", i.version),
+                            "Open Pane to install it.".into(),
                         );
                         told = Some(i.version);
                     }
