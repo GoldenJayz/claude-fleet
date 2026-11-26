@@ -24,7 +24,7 @@ export type UpdatePhase =
 
 declare global {
   interface Window {
-    FleetAndroid?: { installApk(path: string): string };
+    FleetAndroid?: { installApk(path: string): string; setWidgetMachines?(json: string): void };
   }
 }
 

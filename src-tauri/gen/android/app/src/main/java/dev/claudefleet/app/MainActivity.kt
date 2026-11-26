@@ -48,6 +48,15 @@ class MainActivity : TauriActivity() {
  * with the same key. Only files in this app's own cache/updates folder are accepted.
  */
 class UpdateInstaller(private val activity: Activity) {
+  /** The app's PC list, for the home screen widget (see [FleetWidget]). */
+  @JavascriptInterface
+  fun setWidgetMachines(json: String) {
+    try {
+      FleetWidget.saveMachines(activity.applicationContext, json)
+    } catch (_: Exception) {
+    }
+  }
+
   @JavascriptInterface
   fun installApk(path: String): String {
     val dir = File(activity.cacheDir, "updates").canonicalFile

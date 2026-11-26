@@ -152,6 +152,8 @@ The phone app is the dashboard only: it shows your PCs, plan usage, prompts and 
 - On a phone the terminal gets a row of extra keys (Esc, Tab, Ctrl+C, arrows, Paste).
 - Back returns to the overview.
 
+**Home screen widget:** long-press the home screen → **Widgets** → **Claude Fleet**. It lists your PCs with online status, CPU and RAM, whether Claude is working (or agent tasks are queued), and the plan usage. Tap it to open the app; the ↻ button refreshes. It refreshes by itself every 30 minutes and whenever you change the PC list in the app, asking the PCs directly over the same network as the app (open the app once after installing so the widget gets your PC list). It can be resized, including on a foldable's cover screen.
+
 **Build and install** (needs Android Studio's SDK and NDK, and the Rust target `aarch64-linux-android`):
 
 ```powershell

@@ -48,7 +48,9 @@ const STORE_KEY = isTauri ? 'claude-fleet.machines' : 'claude-fleet.machines.dev
 async function loadSaved(): Promise<MachineConfig[]> {
   if (isDesktopApp) return invoke<MachineConfig[]>('get_machines');
   try {
-    return JSON.parse(localStorage.getItem(STORE_KEY) ?? '[]');
+    const list: MachineConfig[] = JSON.parse(localStorage.getItem(STORE_KEY) ?? '[]');
+    syncWidget(list);
+    return list;
   } catch {
     return [];
   }
@@ -57,7 +59,19 @@ async function loadSaved(): Promise<MachineConfig[]> {
 async function storeSaved(list: MachineConfig[]) {
   const clean = list.map(({ id, name, address, token }) => ({ id, name, address, token }));
   if (isDesktopApp) await invoke('save_machines', { machines: clean });
-  else localStorage.setItem(STORE_KEY, JSON.stringify(clean));
+  else {
+    localStorage.setItem(STORE_KEY, JSON.stringify(clean));
+    syncWidget(clean);
+  }
+}
+
+/** Android: hand the PC list to the home screen widget, which asks the PCs itself. */
+function syncWidget(list: MachineConfig[]) {
+  try {
+    window.FleetAndroid?.setWidgetMachines?.(JSON.stringify(list.map(({ name, address, token }) => ({ name, address, token }))));
+  } catch {
+    /* older app build without the widget */
+  }
 }
 
 export async function loadAddresses(): Promise<LanAddress[]> {
