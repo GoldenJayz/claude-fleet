@@ -83,7 +83,7 @@ export function SystemSettings({
   }
 
   const port = local?.port ?? 47821;
-  const fwOk = fw?.exists && fw.enabled && fw.matchesThisApp;
+  const fwOk = fw?.exists && fw.enabled && fw.matchesThisApp && fw.coversPrivateRanges;
 
   return (
     <div className="flex flex-col gap-4">
@@ -104,7 +104,8 @@ export function SystemSettings({
         label="Allow other PCs to connect"
         hint={
           <>
-            Adds a Windows Firewall rule for port {port}: this app only, local network and Tailscale only, Private/Domain networks.
+            Adds a Windows Firewall rule for port {port}: this app only, private addresses only (your network, VPN and Tailscale),
+            Private/Domain networks.
             Windows asks for admin approval.
           </>
         }
@@ -124,7 +125,11 @@ export function SystemSettings({
           </>
         ) : (
           <>
-            {fw.exists && <Chip tone="warn">{fw.matchesThisApp ? 'rule disabled' : 'rule is for another copy'}</Chip>}
+            {fw.exists && (
+              <Chip tone="warn">
+                {!fw.matchesThisApp ? 'rule is for another copy' : !fw.enabled ? 'rule disabled' : 'phones on a VPN are blocked'}
+              </Chip>
+            )}
             <button
               className={primary}
               disabled={!system.available || !!busy}

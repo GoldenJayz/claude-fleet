@@ -11,6 +11,8 @@ export interface FirewallStatus {
   port: string | null;
   program: string | null;
   matchesThisApp: boolean;
+  /** False for older rules that only allowed this PC's own subnet (blocks phones on a VPN). */
+  coversPrivateRanges: boolean;
 }
 
 export interface StatusLineChange {

@@ -54,6 +54,10 @@ pub struct FirewallStatus {
     pub program: Option<String>,
     /// True when the rule points at this exact program (e.g. not an older install path).
     pub matches_this_app: bool,
+    /// True when the rule admits every private range, not just this PC's subnet. Older rules
+    /// only allowed the local subnet, which blocks phones on a VPN that hands out its own
+    /// subnet (e.g. 192.168.2.x on a router's OpenVPN while the PCs are on 192.168.1.x).
+    pub covers_private_ranges: bool,
 }
 
 #[tauri::command]
@@ -62,25 +66,28 @@ pub fn firewall_status() -> Result<FirewallStatus, String> {
     let out = powershell(&format!(
         "$r = Get-NetFirewallRule -DisplayName '{FIREWALL_RULE}' -ErrorAction SilentlyContinue | Select-Object -First 1
          if (-not $r) {{ 'none'; exit }}
-         $p = $r | Get-NetFirewallPortFilter; $a = $r | Get-NetFirewallApplicationFilter
-         \"$($r.Enabled)|$($p.LocalPort)|$($a.Program)\""
+         $p = $r | Get-NetFirewallPortFilter; $a = $r | Get-NetFirewallApplicationFilter; $f = $r | Get-NetFirewallAddressFilter
+         \"$($r.Enabled)|$($p.LocalPort)|$(@($f.RemoteAddress) -join ',')|$($a.Program)\""
     ))?;
     if out == "none" || out.is_empty() {
-        return Ok(FirewallStatus { exists: false, enabled: false, port: None, program: None, matches_this_app: false });
+        return Ok(FirewallStatus { exists: false, enabled: false, port: None, program: None, matches_this_app: false, covers_private_ranges: false });
     }
-    let parts: Vec<&str> = out.splitn(3, '|').collect();
-    let program = parts.get(2).map(|s| s.to_string()).filter(|s| !s.is_empty() && s != "Any");
+    let parts: Vec<&str> = out.splitn(4, '|').collect();
+    let remote = parts.get(2).copied().unwrap_or("").to_ascii_lowercase();
+    let program = parts.get(3).map(|s| s.to_string()).filter(|s| !s.is_empty() && s != "Any");
     let exe = std::env::current_exe().ok().map(|p| p.display().to_string().to_ascii_lowercase());
     Ok(FirewallStatus {
         exists: true,
         enabled: parts.first().is_some_and(|e| e.eq_ignore_ascii_case("true")),
         port: parts.get(1).map(|s| s.to_string()),
         matches_this_app: program.as_ref().map(|p| p.to_ascii_lowercase()) == exe,
+        covers_private_ranges: remote.split(',').any(|r| r == "any" || r.starts_with("192.168.0.0/")),
         program,
     })
 }
 
-/// Adds (or replaces) an inbound rule for this app's port, limited to the local subnet and
+/// Adds (or replaces) an inbound rule for this app's port, limited to private addresses (the
+/// local subnet, 10/8, 172.16/12, 192.168/16, so VPN clients on their own subnet get in) and
 /// Tailscale (100.64.0.0/10), on Private and Domain networks. Windows shows a UAC prompt;
 /// nothing changes if the user declines.
 #[tauri::command]
@@ -89,8 +96,8 @@ pub fn firewall_allow(port: u16) -> Result<FirewallStatus, String> {
     let netsh = format!(
         "/c netsh advfirewall firewall delete rule name=\"{FIREWALL_RULE}\" >nul 2>&1 & \
          netsh advfirewall firewall add rule name=\"{FIREWALL_RULE}\" dir=in action=allow protocol=TCP \
-         localport={port} program=\"{exe}\" profile=private,domain remoteip=localsubnet,100.64.0.0/10 \
-         description=\"Lets your other PCs reach Claude Fleet on this one (LAN and Tailscale only).\""
+         localport={port} program=\"{exe}\" profile=private,domain remoteip=localsubnet,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10 \
+         description=\"Lets your other PCs and phones reach Claude Fleet on this one (private networks, VPN and Tailscale only).\""
     );
     let args = netsh.replace('\'', "''");
     powershell(&format!(
